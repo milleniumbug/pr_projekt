@@ -1,8 +1,8 @@
 #include "precomp.hpp"
 #include "netutils.hpp"
 
-//const struct timespec logical_tick_time = { 0, 8333333 }; // 1/120 sekundy
-//const struct timespec logical_tick_time = { 2, 0 }; // do test
+const struct timespec logical_tick_time = { 0, 8333333 }; // 1/120 sekundy
+//const struct timespec logical_tick_time = { 2, 0 }; // do testów
 
 int main()
 {
@@ -17,8 +17,6 @@ int main()
 	timerfd_settime(timer, 0, &timeout, nullptr);
 	FD_SET(timer.fd(), &do_odczytu);
 	max_fds = std::max(timer.fd(), max_fds);
-
-	//FD_SET(0, &do_odczytu);
 
 	// UDP Socket
 	UDPSocket socket(60000);
