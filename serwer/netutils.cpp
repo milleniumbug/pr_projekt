@@ -28,7 +28,7 @@ UDPSocket::UDPSocket(int port)
 	}
 }
 
-char* UDPSocket::send(char* data_begin, char* data_end, IPv4Address destination, int port)
+const char* UDPSocket::send(const char* data_begin, const char* data_end, IPv4Address destination, int port)
 {
 	struct sockaddr_in sa;
 	socklen_t tolen = sizeof(sa);

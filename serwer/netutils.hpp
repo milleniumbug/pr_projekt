@@ -36,7 +36,7 @@ public:
 	UDPSocket(int port);
 	
 	int fd() { return fd_.fd(); }
-	char* send(char* data_begin, char* data_end, IPv4Address destination, int port);
+	const char* send(const char* data_begin, const char* data_end, IPv4Address destination, int port);
 	char* receive(char* data_begin, char* data_end, IPv4Address& source, int& port);
 };
 
