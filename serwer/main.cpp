@@ -1,8 +1,71 @@
 #include "precomp.hpp"
 #include "netutils.hpp"
 
-const struct timespec logical_tick_time = { 0, 8333333 }; // 1/120 sekundy
-//const struct timespec logical_tick_time = { 2, 0 }; // do testów
+static_assert(CHAR_BIT == 8, "char musi mieć 8 bitów");
+const std::uint32_t wersja_serwera = 1;
+
+//const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
+const struct timespec logical_tick_time = { 5, 0 }; // do testów
+
+enum class RodzajKomunikatu : unsigned char
+{
+	przylacz_sie = 0x01,
+	zaakceptowanie = 0x02,
+	przeslij_stan_gry = 0x03,
+	przeslanie_stanu_gry = 0x04,
+	przeslij_info_o_serwerze = 0x05,
+	info_o_serwerze = 0x06,
+	keep_alive = 0x07,
+	zakoncz = 0x08,
+	akcja_gracza = 0x09,
+	nieznany_komunikat = 0x71,
+	niekompatybilna_wersja = 0x72,
+	gra_juz_rozpoczeta = 0x73,
+	serwer_pelny = 0x74
+};
+
+enum class Endian
+{
+	big,
+	little,
+	native = Endian::little, // TODO: make it dependent on actual machine endian
+	network = Endian::big
+};
+
+template<typename T>
+T endian_change(T value, Endian from, Endian to)
+{
+	if(to != from)
+	{
+		char* begin = reinterpret_cast<char*>(&value);
+		char* end = begin + sizeof(T);
+		std::reverse(begin, end);
+	}
+	return value;
+}
+
+template<typename RandomAccessIterator>
+std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port)
+{
+	RandomAccessIterator next_end = begin+sizeof(wersja_serwera);
+	std::uint32_t wersja_klienta;
+	std::copy(begin, next_end, reinterpret_cast<char*>(&wersja_klienta));
+	wersja_klienta = endian_change(wersja_klienta, Endian::network, Endian::native);
+
+	std::underlying_type<RodzajKomunikatu>::type komunikat;
+
+	std::vector<char> odpowiedz(1, 'A');
+	if(wersja_klienta != wersja_serwera)
+	{
+		odpowiedz.resize(sizeof(wersja_serwera) + sizeof(komunikat));
+		std::copy(reinterpret_cast<const char*>(&wersja_serwera), 
+		          reinterpret_cast<const char*>(&wersja_serwera) + sizeof(wersja_serwera),
+		          odpowiedz.begin());
+		*(odpowiedz.begin() + sizeof(wersja_serwera)) = static_cast<decltype(komunikat)>(RodzajKomunikatu::niekompatybilna_wersja);
+		return odpowiedz;
+	}
+	return odpowiedz;
+}
 
 int main()
 {
@@ -44,16 +107,13 @@ int main()
 			char* begin = input_buffer.data();
 			char* end = begin+input_buffer.size();
 			IPv4Address source(0,0,0,0);
-			end = socket.receive(begin, end, source);
+			int port;
+			end = socket.receive(begin, end, source, port);
 			*(end+1) = '\0';
 			std::cout << "COS TU JEST! " << begin << "\n" << std::flush;
-		}
 
-		if(FD_ISSET(0, &rfds))
-		{
-			char a;
-			std::cout << "stdin\n" << std::flush;
-			std::cin >> a;
+			std::vector<char> response = skonstruuj_odpowiedz(begin, end, source, port);
+			socket.send(response.data(), response.data()+response.size(), source, port);
 		}
 	}
 }

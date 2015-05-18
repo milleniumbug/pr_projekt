@@ -7,6 +7,7 @@ private:
 	unsigned char addr[4];
 
 public:
+	uint32_t as_uint();
 	IPv4Address(int octet_a, int octet_b, int octet_c, int octet_d);
 };
 
@@ -35,8 +36,8 @@ public:
 	UDPSocket(int port);
 	
 	int fd() { return fd_.fd(); }
-	char* send(char* data_begin, char* data_end, IPv4Address destination);
-	char* receive(char* data_begin, char* data_end, IPv4Address& source);
+	char* send(char* data_begin, char* data_end, IPv4Address destination, int port);
+	char* receive(char* data_begin, char* data_end, IPv4Address& source, int& port);
 };
 
 #endif

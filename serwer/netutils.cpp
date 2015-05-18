@@ -28,13 +28,25 @@ UDPSocket::UDPSocket(int port)
 	}
 }
 
-char* UDPSocket::send(char* data_begin, char* data_end, IPv4Address destination)
+char* UDPSocket::send(char* data_begin, char* data_end, IPv4Address destination, int port)
 {
-	assert(false);
-
+	struct sockaddr_in sa;
+	socklen_t tolen = sizeof(sa);
+	std::memset(&sa, 0, tolen);
+	size_t distance = (data_end - data_begin);
+	sa.sin_family = AF_INET;
+	sa.sin_addr.s_addr = htonl(destination.as_uint());
+	sa.sin_port = htons(port);
+	ssize_t ret = sendto(fd_.fd(), data_begin, distance, 0, (struct sockaddr*)&sa, tolen);
+	if(ret == -1)
+	{
+		// TODO: Add proper exceptions
+		throw "FUCK";
+	}
+	return data_begin + ret;
 }
 
-char* UDPSocket::receive(char* data_begin, char* data_end, IPv4Address& source)
+char* UDPSocket::receive(char* data_begin, char* data_end, IPv4Address& source, int& port)
 {
 	struct sockaddr_in sa;
 	socklen_t fromlen = sizeof(sa);
@@ -45,9 +57,10 @@ char* UDPSocket::receive(char* data_begin, char* data_end, IPv4Address& source)
 		// TODO: Add proper exceptions
 		throw "FUCK";
 	}
-	auto a = sa.sin_addr.s_addr;
+	auto a = ntohl(sa.sin_addr.s_addr);
 	IPv4Address address((a >> 24)&0xFF, (a >> 16)&0xFF, (a >> 8)&0xFF, (a >> 0)&0xFF);
 	source = address;
+	port = ntohs(sa.sin_port);
 	return data_begin + ret;
 }
 
@@ -85,4 +98,9 @@ IPv4Address::IPv4Address(int octet_a, int octet_b, int octet_c, int octet_d)
 	addr[1] = octet_b;
 	addr[2] = octet_c;
 	addr[3] = octet_d;
+}
+
+uint32_t IPv4Address::as_uint()
+{
+	return ((uint32_t)addr[0] << 24) | ((uint32_t)addr[1] << 16) | ((uint32_t)addr[2] << 8) | ((uint32_t)addr[3] << 0);
 }
