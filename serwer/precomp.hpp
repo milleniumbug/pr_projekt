@@ -1,12 +1,15 @@
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <array>
 #include <unordered_set>
 #include <algorithm>
 #include <cstring>
 #include <limits>
 #include <climits>
 #include <cassert>
+#include <iterator>
+#include <type_traits>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/time.h>

@@ -44,6 +44,34 @@ T endian_change(T value, Endian from, Endian to)
 	return value;
 }
 
+template<int N>
+struct SfinaeDisambiguatorImpl
+{
+	using type = SfinaeDisambiguatorImpl*;
+};
+
+template<int N>
+using SfinaeDisambiguator = typename SfinaeDisambiguatorImpl<N>::type;
+
+template<typename T,
+         typename = typename std::enable_if<std::is_arithmetic<T>::value>::type,
+         SfinaeDisambiguator<0> = nullptr>
+void serialize_to(std::vector<char>& buffer, T data)
+{
+	T changed = endian_change(data, Endian::native, Endian::network);
+	std::copy(reinterpret_cast<const char*>(&changed), 
+	          reinterpret_cast<const char*>(&changed) + sizeof(T),
+	          std::back_inserter(buffer));
+}
+
+template<typename T,
+         typename = typename std::enable_if<std::is_enum<T>::value>::type,
+         SfinaeDisambiguator<1> = nullptr>
+void serialize_to(std::vector<char>& buffer, T data)
+{
+	serialize_to(buffer, static_cast<typename std::underlying_type<T>::type>(data));
+}
+
 template<typename RandomAccessIterator>
 std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port)
 {
@@ -52,16 +80,11 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 	std::copy(begin, next_end, reinterpret_cast<char*>(&wersja_klienta));
 	wersja_klienta = endian_change(wersja_klienta, Endian::network, Endian::native);
 
-	std::underlying_type<RodzajKomunikatu>::type komunikat;
-
-	std::vector<char> odpowiedz(1, 'A');
+	std::vector<char> odpowiedz;
+	serialize_to(odpowiedz, wersja_serwera);
 	if(wersja_klienta != wersja_serwera)
 	{
-		odpowiedz.resize(sizeof(wersja_serwera) + sizeof(komunikat));
-		std::copy(reinterpret_cast<const char*>(&wersja_serwera), 
-		          reinterpret_cast<const char*>(&wersja_serwera) + sizeof(wersja_serwera),
-		          odpowiedz.begin());
-		*(odpowiedz.begin() + sizeof(wersja_serwera)) = static_cast<decltype(komunikat)>(RodzajKomunikatu::niekompatybilna_wersja);
+		serialize_to(odpowiedz, RodzajKomunikatu::niekompatybilna_wersja);
 		return odpowiedz;
 	}
 	return odpowiedz;
@@ -86,7 +109,7 @@ int main()
 	FD_SET(socket.fd(), &do_odczytu);
 	max_fds = std::max(socket.fd(), max_fds);
 
-	std::vector<char> input_buffer(1024), output_buffer(1024);
+	std::vector<char> input_buffer(1024);
 	while(true)
 	{
 		fd_set rfds = do_odczytu;
