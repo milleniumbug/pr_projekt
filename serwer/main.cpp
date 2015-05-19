@@ -29,10 +29,8 @@ enum class RodzajKomunikatu : unsigned char
 template<typename RandomAccessIterator>
 std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port)
 {
-	RandomAccessIterator next_end = begin+sizeof(wersja_serwera);
 	std::uint32_t wersja_klienta;
-	std::copy(begin, next_end, reinterpret_cast<char*>(&wersja_klienta));
-	wersja_klienta = endian_change(wersja_klienta, Endian::network, Endian::native);
+	std::tie(wersja_klienta, begin) = deserialize_from<decltype(wersja_klienta)>(begin, end);
 
 	std::vector<char> odpowiedz;
 	auto output = std::back_inserter(odpowiedz);
