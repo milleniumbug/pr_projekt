@@ -57,22 +57,4 @@ void serialize_to(std::vector<char>& buffer, T data)
 	serialize_to(buffer, static_cast<typename std::underlying_type<T>::type>(data));
 }
 
-template<typename RandomAccessIterator>
-std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port)
-{
-	RandomAccessIterator next_end = begin+sizeof(wersja_serwera);
-	std::uint32_t wersja_klienta;
-	std::copy(begin, next_end, reinterpret_cast<char*>(&wersja_klienta));
-	wersja_klienta = endian_change(wersja_klienta, Endian::network, Endian::native);
-
-	std::vector<char> odpowiedz;
-	serialize_to(odpowiedz, wersja_serwera);
-	if(wersja_klienta != wersja_serwera)
-	{
-		serialize_to(odpowiedz, RodzajKomunikatu::niekompatybilna_wersja);
-		return odpowiedz;
-	}
-	return odpowiedz;
-}
-
 #endif
