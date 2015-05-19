@@ -28,7 +28,15 @@ enum class Endian
 {
 	big,
 	little,
-	native = Endian::little, // TODO: make it dependent on actual machine endian
+	native =
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	Endian::little
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	Endian::big
+#else
+#error "Unknown endian or architecture not supported"
+#endif
+	,
 	network = Endian::big
 };
 

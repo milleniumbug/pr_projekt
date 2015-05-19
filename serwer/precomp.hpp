@@ -8,6 +8,7 @@
 #include <limits>
 #include <climits>
 #include <cassert>
+#include <functional>
 #include <iterator>
 #include <type_traits>
 #include <sys/socket.h>
