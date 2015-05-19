@@ -81,7 +81,6 @@ int main()
 			IPv4Address source(0,0,0,0);
 			int port;
 			end = socket.receive(begin, end, source, port);
-			*(end+1) = '\0';
 			std::cout << "ODEBRANO: ";
 			debug_output_as_hex(std::cout, begin, end);
 			std::cout << "\n" << std::flush;
