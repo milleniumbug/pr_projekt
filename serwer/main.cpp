@@ -90,6 +90,19 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 	return odpowiedz;
 }
 
+template<typename InputIterator>
+void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator end)
+{
+	char hexchars[] = "0123456789ABCDEF";
+	std::for_each(begin, end, [&](char s)
+	{
+		auto c = reinterpret_cast<unsigned char&>(s);
+		out.put(hexchars[c / 16]);
+		out.put(hexchars[c % 16]);
+		out.put(' ');
+	});
+}
+
 int main()
 {
 	// for select
@@ -122,21 +135,26 @@ int main()
 			std::uint64_t ticks;
 			read(timer, &ticks, sizeof ticks);
 
-			std::cout << "LOGIKA GRY!" << ticks << "\n" << std::flush;
+			std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << "\n" << std::flush;
 		}
 
 		if(FD_ISSET(socket.fd(), &rfds))
 		{
 			char* begin = input_buffer.data();
-			char* end = begin+input_buffer.size();
+			char* end = begin+input_buffer.size()-1;
 			IPv4Address source(0,0,0,0);
 			int port;
 			end = socket.receive(begin, end, source, port);
 			*(end+1) = '\0';
-			std::cout << "COS TU JEST! " << begin << "\n" << std::flush;
+			std::cout << "ODEBRANO: ";
+			debug_output_as_hex(std::cout, begin, end);
+			std::cout << "\n" << std::flush;
 
 			std::vector<char> response = skonstruuj_odpowiedz(begin, end, source, port);
 			socket.send(response.data(), response.data()+response.size(), source, port);
+			std::cout << "WYSLANO: ";
+			debug_output_as_hex(std::cout, response.begin(), response.end());
+			std::cout << "\n" << std::flush;
 		}
 	}
 }
