@@ -93,7 +93,7 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 template<typename InputIterator>
 void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator end)
 {
-	char hexchars[] = "0123456789ABCDEF";
+	static const char hexchars[] = "0123456789ABCDEF";
 	std::for_each(begin, end, [&](char s)
 	{
 		auto c = reinterpret_cast<unsigned char&>(s);
