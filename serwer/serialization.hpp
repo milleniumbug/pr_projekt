@@ -39,22 +39,24 @@ template<int N>
 using SfinaeDisambiguator = typename SfinaeDisambiguatorImpl<N>::type;
 
 template<typename T,
+         typename OutputIterator,
          typename = typename std::enable_if<std::is_arithmetic<T>::value>::type,
          SfinaeDisambiguator<0> = nullptr>
-void serialize_to(std::vector<char>& buffer, T data)
+void serialize_to(OutputIterator output, T data)
 {
 	T changed = endian_change(data, Endian::native, Endian::network);
 	std::copy(reinterpret_cast<const char*>(&changed), 
 	          reinterpret_cast<const char*>(&changed) + sizeof(T),
-	          std::back_inserter(buffer));
+	          output);
 }
 
 template<typename T,
+         typename OutputIterator,
          typename = typename std::enable_if<std::is_enum<T>::value>::type,
          SfinaeDisambiguator<1> = nullptr>
-void serialize_to(std::vector<char>& buffer, T data)
+void serialize_to(OutputIterator output, T data)
 {
-	serialize_to(buffer, static_cast<typename std::underlying_type<T>::type>(data));
+	serialize_to(output, static_cast<typename std::underlying_type<T>::type>(data));
 }
 
 #endif

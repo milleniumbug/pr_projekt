@@ -35,10 +35,11 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 	wersja_klienta = endian_change(wersja_klienta, Endian::network, Endian::native);
 
 	std::vector<char> odpowiedz;
-	serialize_to(odpowiedz, wersja_serwera);
+	auto output = std::back_inserter(odpowiedz);
+	serialize_to(output, wersja_serwera);
 	if(wersja_klienta != wersja_serwera)
 	{
-		serialize_to(odpowiedz, RodzajKomunikatu::niekompatybilna_wersja);
+		serialize_to(output, RodzajKomunikatu::niekompatybilna_wersja);
 		return odpowiedz;
 	}
 	return odpowiedz;
