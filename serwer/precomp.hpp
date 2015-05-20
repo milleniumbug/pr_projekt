@@ -10,6 +10,7 @@
 #include <cassert>
 #include <functional>
 #include <iterator>
+#include <cctype>
 #include <type_traits>
 #include <sys/socket.h>
 #include <sys/select.h>

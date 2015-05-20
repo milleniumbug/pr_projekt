@@ -1,6 +1,11 @@
 #ifndef SERIALIZATION_HPP
 #define SERIALIZATION_HPP
 
+#include <iterator>
+#include <algorithm>
+#include <utility>
+#include <stdexcept>
+
 enum class Endian
 {
 	big,
@@ -50,6 +55,11 @@ void serialize_to(OutputIterator output, T data)
 	          output);
 }
 
+struct BufferTooShort : public std::runtime_error
+{
+	using std::runtime_error::runtime_error;
+};
+
 template<typename T,
          typename OutputIterator,
          typename = typename std::enable_if<std::is_enum<T>::value>::type,
@@ -67,10 +77,13 @@ std::pair<T, InputIterator> deserialize_from(InputIterator begin, InputIterator 
 {
 	std::pair<T, InputIterator> ret(T(), begin);
 	char* output = reinterpret_cast<char*>(&ret.first);
-	for(std::size_t i = 0; i < sizeof(T) && begin != end; ++i)
+	std::size_t i = 0;
+	for(; i < sizeof(T) && begin != end; ++i)
 	{
 		*output++ = *begin++;
 	}
+	if(i != sizeof(T) && begin == end)
+		throw BufferTooShort("funkcja napotkala przedwczesny koniec bufora");
 	ret.first = endian_change(ret.first, Endian::network, Endian::native);
 	ret.second = begin;
 	return ret;

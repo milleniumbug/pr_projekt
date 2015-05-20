@@ -29,16 +29,26 @@ enum class RodzajKomunikatu : unsigned char
 template<typename RandomAccessIterator>
 std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port)
 {
-	std::uint32_t wersja_klienta;
-	std::tie(wersja_klienta, begin) = deserialize_from<decltype(wersja_klienta)>(begin, end);
-
 	std::vector<char> odpowiedz;
 	auto output = std::back_inserter(odpowiedz);
 	serialize_to(output, wersja_serwera);
-	if(wersja_klienta != wersja_serwera)
+	try
 	{
-		serialize_to(output, RodzajKomunikatu::niekompatybilna_wersja);
-		return odpowiedz;
+		std::uint32_t wersja_klienta;
+		std::tie(wersja_klienta, begin) = deserialize_from<decltype(wersja_klienta)>(begin, end);
+
+		if(wersja_klienta != wersja_serwera)
+		{
+			serialize_to(output, RodzajKomunikatu::niekompatybilna_wersja);
+			return odpowiedz;
+		}
+	}
+	catch(const BufferTooShort& ex)
+	{
+		serialize_to(output, RodzajKomunikatu::nieznany_komunikat);
+		std::string komunikat = "Błędne zapytanie";
+		std::copy(komunikat.begin(), komunikat.end(), output);
+		*output++ = '\0';
 	}
 	return odpowiedz;
 }
@@ -55,6 +65,28 @@ void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator e
 		out.put(' ');
 	});
 }
+
+template<typename InputIterator>
+void debug_output(std::ostream& out, InputIterator begin, InputIterator end)
+{
+	static const char hexchars[] = "0123456789ABCDEF";
+	std::for_each(begin, end, [&](char s)
+	{
+		auto c = reinterpret_cast<unsigned char&>(s);
+		if(!isgraph(c))
+		{
+			out.put(hexchars[c / 16]);
+			out.put(hexchars[c % 16]);
+			out.put(' ');
+		}
+		else
+		{
+			out.put(s);
+			out.put(' ');
+		}
+	});
+}
+
 
 int main()
 {
@@ -98,13 +130,17 @@ int main()
 			IPv4Address source(0,0,0,0);
 			int port;
 			end = socket.receive(begin, end, source, port);
-			std::cout << "ODEBRANO: ";
+			std::cout << "ODEBRANO:\n";
+			debug_output(std::cout, begin, end);
+			std::cout << "\n";
 			debug_output_as_hex(std::cout, begin, end);
 			std::cout << "\n" << std::flush;
 
 			std::vector<char> response = skonstruuj_odpowiedz(begin, end, source, port);
 			socket.send(response.data(), response.data()+response.size(), source, port);
-			std::cout << "WYSLANO: ";
+			std::cout << "WYSLANO:\n";
+			debug_output(std::cout, response.begin(), response.end());
+			std::cout << "\n";
 			debug_output_as_hex(std::cout, response.begin(), response.end());
 			std::cout << "\n" << std::flush;
 		}
