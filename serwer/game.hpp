@@ -4,6 +4,8 @@
 #include <memory>
 #include <vector>
 
+const int ticks_in_a_second = 120;
+
 class Point
 {
 	int x_;
@@ -26,10 +28,7 @@ public:
 	int y() { return y_; }
 };
 
-Point translate(Point source, Vector displacement)
-{
-	return Point(source.x() + displacement.x(), source.y() + displacement.y());
-}
+Point translate(Point source, Vector displacement);
 
 class PlayerEntity
 {
@@ -51,8 +50,9 @@ class BombermanGame
 {
 	BombermanLevel current_level;
 	unsigned long long ticks;
+public:
+	static bool refresh(const BombermanGame& source, BombermanGame& target);
 };
 
-bool refresh(const BombermanGame& source, BombermanGame& target);
 
 #endif
