@@ -2,9 +2,11 @@
 #include <SDL_ttf.h>
 #include <string>
 #include <Windows.h>
+#include <SDL2_rotozoom.h>
+#include "TexArray.h"
+
 
 using namespace std;
-
 string mainPath;
 
 SDL_Renderer* ren = NULL;
@@ -15,6 +17,16 @@ SDL_Color colorKey = {255, 255, 0, 255};
 int ticks = 0;
 int framesCount = 0;
 int tempFramesCount = 0;
+
+//magia visuala, mam zalinkowan¹ bibliotekê we w³aœciwoœciach projektu, ale ten jej nie widzi ;D
+//a ta linijka magicznie dzia³a o.o
+#pragma comment(lib, "..\\SDL2_gfx-1.0.1\\lib\\SDL2_gfx.lib")
+
+SDL_Texture* texBlock;
+TexArray* texPlayer1;
+TexArray* texPlayer2;
+TexArray* texPlayer3;
+TexArray* texPlayer4;
 
 int windowW = 768, windowH = 768;
 
@@ -49,6 +61,20 @@ void generateMap()
 	for (int i = 0; i < 12; i++)
 		for (int j = 0; j < 12; j++)
 			map[i][j] = Block(rand() % 2, i, j);
+
+	//piêkne linijki - wyczyszczenie rogów mapy, tak aby by³o miejsce gdzie postawiæ bombê
+	map[0][0] = Block(0, 0, 0);
+	map[0][1] = Block(0, 0, 1);
+	map[1][0] = Block(0, 1, 0);
+	map[11][0] = Block(0, 11, 0);
+	map[11][1] = Block(0, 11, 1);
+	map[10][0] = Block(0, 10, 0);
+	map[11][10] = Block(0, 11, 0);
+	map[11][11] = Block(0, 11, 1);
+	map[10][0] = Block(0, 10, 0);
+	map[0][10] = Block(0, 11, 0);
+	map[0][11] = Block(0, 11, 1);
+	map[1][11] = Block(0, 10, 0);
 }
 
 string getDirectory()
@@ -121,19 +147,106 @@ void drawFPS()
 		tempFramesCount = 0;
 		ticks = GetTickCount();
 	}
-	renderText("FPS: " + to_string(framesCount), red, 0, 0);
+	SetWindowTextA(GetActiveWindow(), ("FPS: " + to_string(framesCount)).c_str());
+	//renderText("FPS: " + to_string(framesCount), red, 0, 0);
+}
+
+int x = 0;
+int y = 0;
+int xMoveDir = 0;
+int yMoveDir = 0;
+double multiplyFactor = 1.0f;
+
+bool leftPressed = false;
+bool rightPressed = false;
+bool upPressed = false;
+bool downPressed = false;
+
+
+void HandleKeyboard(SDL_Event e)
+{
+	if (e.type == SDL_KEYDOWN)
+	{
+		if (e.key.keysym.sym == SDLK_UP)
+			upPressed = true;
+		if (e.key.keysym.sym == SDLK_DOWN)
+			downPressed = true;
+		if (e.key.keysym.sym == SDLK_LEFT)
+			leftPressed = true;
+		if (e.key.keysym.sym == SDLK_RIGHT)
+			rightPressed = true;
+		if (e.key.keysym.sym == SDLK_LSHIFT)
+			multiplyFactor = 0.5f;
+	}
+	else // if (e.type == SDL_KEYUP)
+	{
+		if (e.key.keysym.sym == SDLK_UP)
+			upPressed = false;
+		else if (e.key.keysym.sym == SDLK_DOWN)
+			downPressed = false;
+		else if (e.key.keysym.sym == SDLK_LEFT)
+			leftPressed = false;
+		else if (e.key.keysym.sym == SDLK_RIGHT)
+			rightPressed = false;
+		if (e.key.keysym.sym == SDLK_ESCAPE)
+			doExit = true;
+		if (e.key.keysym.sym == SDLK_LSHIFT)
+			multiplyFactor = 1.0f;
+	}
+}
+
+int xDiff = 0;
+int yDiff = 0;
+//async * 2ms
+void moveThread()
+{
+	while (true)
+	{
+		xDiff = 0;
+		yDiff = 0;
+		if (leftPressed)
+			xDiff -= 2 * multiplyFactor;
+		if (rightPressed)
+			xDiff += 2 * multiplyFactor;
+		if (upPressed)
+			yDiff -= 2 * multiplyFactor;
+		if (downPressed)
+			yDiff += 2 * multiplyFactor;
+		
+		y += yDiff;
+		x += xDiff;
+
+		if (yDiff < 0)
+			texPlayer1->current = texPlayer1->up;
+		else if (yDiff > 0)
+			texPlayer1->current = texPlayer1->down;
+		if (xDiff < 0)
+			texPlayer1->current = texPlayer1->left;
+		else if (xDiff > 0)
+			texPlayer1->current = texPlayer1->right;
+
+		if (x < 0)
+			x = 0;
+		if (y < 0)
+			y = 0;
+		if (y > windowH - 64)
+			y = windowH - 64;
+		if (x > windowW - 64)
+			x = windowW - 64;
+
+		Sleep(4);
+	}
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
-	{
 		return 1;
-	}
 
 	mainPath = getDirectory();
 	if (mainPath == "error")
 		return 1;
+	
 	SDL_Window* win = SDL_CreateWindow("Hello World!", 100, 100, windowW, windowH, SDL_WINDOW_SHOWN);
 	if (win == NULL)
 	{
@@ -169,7 +282,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	ticks = GetTickCount();
 
-	SDL_Texture* blockTexture = LoadTexture(mainPath + "gfx\\block.bmp");
+	texBlock = LoadTexture(mainPath + "gfx\\block.bmp");
+	texPlayer1 = new TexArray(mainPath + "gfx\\player1.bmp", ren);
+	texPlayer2 = new TexArray(mainPath + "gfx\\player2.bmp", ren);
+	texPlayer3 = new TexArray(mainPath + "gfx\\player3.bmp", ren);
+	texPlayer4 = new TexArray(mainPath + "gfx\\player4.bmp", ren);
+
+	HANDLE moveThreadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)moveThread, NULL, NULL, NULL);
+
 	SDL_Event e;
 	while (!doExit)
 	{
@@ -177,11 +297,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			if (e.type == SDL_QUIT)
 				doExit = true;
-			if (e.type == SDL_KEYDOWN)
-			{
-				if (e.key.keysym.sym == SDLK_a)
-					doExit = true;
-			}
+			if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP)
+				HandleKeyboard(e);
 		}
 		//Render the scene
 		SDL_RenderClear(ren);
@@ -193,15 +310,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			for (int j = 0; j < 12; j++)
 			{
 				if (map[i][j].type != 0)
-					renderTexture(blockTexture,i*64, j*64, 64, 64);
+					renderTexture(texBlock, i*64,  j*64, 64, 64);
 			}
 		}
+		renderTexture(texPlayer1->current, x, y, 64, 64);
 		//renderTexture(blockTexture, 0, 0, 64, 64);
 		drawFPS();
 		SDL_RenderPresent(ren);
+		//Sleep(33);
 	}
+
+	TerminateThread(moveThreadHandle, 0);
 	TTF_CloseFont(font);
-	SDL_DestroyTexture(blockTexture);
+	SDL_DestroyTexture(texBlock);
+	
+	delete texPlayer1;
+	delete texPlayer2;
+	delete texPlayer3;
+	delete texPlayer4;
+	
 	SDL_DestroyRenderer(ren);
 	SDL_DestroyWindow(win);
 	SDL_Quit();
