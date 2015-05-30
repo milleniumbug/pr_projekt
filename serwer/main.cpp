@@ -9,6 +9,8 @@ const std::uint32_t wersja_serwera = 1;
 //const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
 const struct timespec logical_tick_time = { 5, 0 }; // do testów
 
+#define OVERLOAD_SET(name) ([&](auto&&... args) -> decltype(auto) { return name(std::forward<decltype(args)>(args)...); })
+
 enum class RodzajKomunikatu : unsigned char
 {
 	przylacz_sie = 0x01,
@@ -75,11 +77,12 @@ template<typename InputIterator>
 void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator end)
 {
 	static const char hexchars[] = "0123456789ABCDEF";
+	static const int hexbase = 16;
 	std::for_each(begin, end, [&](char s)
 	{
 		auto c = reinterpret_cast<unsigned char&>(s);
-		out.put(hexchars[c / 16]);
-		out.put(hexchars[c % 16]);
+		out.put(hexchars[c / hexbase]);
+		out.put(hexchars[c % hexbase]);
 		out.put(' ');
 	});
 }
@@ -88,13 +91,14 @@ template<typename InputIterator>
 void debug_output(std::ostream& out, InputIterator begin, InputIterator end)
 {
 	static const char hexchars[] = "0123456789ABCDEF";
+	static const int hexbase = 16;
 	std::for_each(begin, end, [&](char s)
 	{
 		auto c = reinterpret_cast<unsigned char&>(s);
 		if(!isgraph(c))
 		{
-			out.put(hexchars[c / 16]);
-			out.put(hexchars[c % 16]);
+			out.put(hexchars[c / hexbase]);
+			out.put(hexchars[c % hexbase]);
 			out.put(' ');
 		}
 		else
