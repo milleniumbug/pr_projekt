@@ -149,7 +149,7 @@ int main()
 		{
 			char* begin = input_buffer.data();
 			char* end = begin+input_buffer.size()-1;
-			IPv4Address source(0,0,0,0);
+			IPv4Address source;
 			int port;
 			end = socket.receive(begin, end, source, port);
 			std::cout << "ODEBRANO:\n";

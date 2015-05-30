@@ -100,6 +100,12 @@ IPv4Address::IPv4Address(int octet_a, int octet_b, int octet_c, int octet_d)
 	addr[3] = octet_d;
 }
 
+IPv4Address::IPv4Address() :
+	IPv4Address(0, 0, 0, 0)
+{
+	
+}
+
 uint32_t IPv4Address::as_uint()
 {
 	return ((uint32_t)addr[0] << 24) | ((uint32_t)addr[1] << 16) | ((uint32_t)addr[2] << 8) | ((uint32_t)addr[3] << 0);

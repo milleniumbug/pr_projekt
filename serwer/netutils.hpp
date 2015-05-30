@@ -9,6 +9,7 @@ private:
 public:
 	uint32_t as_uint();
 	IPv4Address(int octet_a, int octet_b, int octet_c, int octet_d);
+	IPv4Address();
 };
 
 class FileDescriptor
