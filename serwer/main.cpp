@@ -26,14 +26,15 @@ enum class RodzajKomunikatu : unsigned char
 	serwer_pelny = 0x74
 };
 
-template<typename RandomAccessIterator>
-std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port)
+template<typename RandomAccessIterator, typename Function>
+std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, Function obsluzenie_pozostalych_przypadkow)
 {
-	std::vector<char> odpowiedz;
-	auto output = std::back_inserter(odpowiedz);
-	serialize_to(output, wersja_serwera);
 	try
 	{
+		std::vector<char> odpowiedz;
+		auto output = std::back_inserter(odpowiedz);
+		serialize_to(output, wersja_serwera);
+
 		std::uint32_t wersja_klienta;
 		std::tie(wersja_klienta, begin) = deserialize_from<decltype(wersja_klienta)>(begin, end);
 
@@ -42,17 +43,34 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 			serialize_to(output, RodzajKomunikatu::niekompatybilna_wersja);
 			return odpowiedz;
 		}
+
+		RodzajKomunikatu komunikat;
+		std::tie(komunikat, begin) = deserialize_from<decltype(komunikat)>(begin, end);
+		obsluzenie_pozostalych_przypadkow(output, begin, end, ip, port, komunikat);
+		return odpowiedz;
 	}
 	catch(const BufferTooShort& ex)
 	{
+		std::vector<char> odpowiedz;
+		auto output = std::back_inserter(odpowiedz);
+		serialize_to(output, wersja_serwera);
+
 		serialize_to(output, RodzajKomunikatu::nieznany_komunikat);
 		std::string komunikat = "Błędne zapytanie";
 		std::copy(komunikat.begin(), komunikat.end(), output);
 		*output++ = '\0';
+		return odpowiedz;
 	}
-	return odpowiedz;
 }
 
+struct Blackhole
+{
+	template<typename... Args>
+	void operator()(Args&&... args)
+	{
+
+	}
+};
 template<typename InputIterator>
 void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator end)
 {
@@ -107,7 +125,7 @@ int main()
 	FD_SET(socket.fd(), &do_odczytu);
 	max_fds = std::max(socket.fd(), max_fds);
 
-	std::vector<char> input_buffer(1024);
+	std::vector<char> input_buffer(65536);
 	while(true)
 	{
 		fd_set rfds = do_odczytu;
@@ -136,7 +154,7 @@ int main()
 			debug_output_as_hex(std::cout, begin, end);
 			std::cout << "\n" << std::flush;
 
-			std::vector<char> response = skonstruuj_odpowiedz(begin, end, source, port);
+			std::vector<char> response = skonstruuj_odpowiedz(begin, end, source, port, Blackhole());
 			socket.send(response.data(), response.data()+response.size(), source, port);
 			std::cout << "WYSLANO:\n";
 			debug_output(std::cout, response.begin(), response.end());

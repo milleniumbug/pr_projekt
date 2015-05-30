@@ -95,7 +95,8 @@ template<typename T,
          SfinaeDisambiguator<1> = nullptr>
 std::pair<T, InputIterator> deserialize_from(InputIterator begin, InputIterator end)
 {
-	return deserialize_from<typename std::underlying_type<T>::type>(begin, end);
+	auto retval = deserialize_from<typename std::underlying_type<T>::type>(begin, end);
+	return std::pair<T, InputIterator>(static_cast<T>(retval.first), retval.second);
 }
 
 #endif
