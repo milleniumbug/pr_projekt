@@ -12,6 +12,9 @@ struct Identity
 	typedef T type;
 };
 
+template<typename T>
+using IdentityAlias = T;
+
 template<typename Type, typename... Args>
 struct Contains;
 
@@ -134,6 +137,18 @@ struct All<Head, Tail...> : std::conditional<
 
 };
 
+template<typename Function>
+struct SignatureReturnType
+{
+
+};
+
+template<typename R, typename... Args>
+struct SignatureReturnType<R(Args...)>
+{
+	typedef R type;
+};
+
 template<typename... Args>
 struct AlignedUnion
 {
@@ -212,6 +227,17 @@ OverloadSet<Args...> make_overload_set(Args&&... args)
 
 #include <iostream>
 
+// usage: TYPE(std::pair<int, int>)
+#define TYPE(...) IdentityAlias<__VA_ARGS__>
+#define DISPATCH(functiontype, what, index, ...) \
+[&]() -> SignatureReturnType< functiontype >::type \
+{ \
+	using DISPATCH_function = functiontype; \
+	using DISPATCH_functionptr = DISPATCH_function*; \
+	static const DISPATCH_functionptr DISPATCH_funs[] = { what }; \
+	return DISPATCH_funs[index](__VA_ARGS__); \
+}()
+
 template<typename... Args>
 class Variant
 {
@@ -262,19 +288,23 @@ public:
 	Variant(const Variant& other) :
 		selector(no_value)
 	{
-		using copier_function = void(void*, const void*);
-		using copier_functionptr = copier_function*;
-		static const copier_functionptr copier[] = { (&VariantOps<Args>::copy_construct)... };
-		copier[other.selector](as_voidptr(), other.as_voidptr());
+		DISPATCH(
+			TYPE( void(void*, const void*) ),
+			(&VariantOps<Args>::copy_construct)...,
+			other.selector,
+			as_voidptr(), other.as_voidptr()
+		);
 		selector = other.selector;
 	}
 
 	Variant(Variant&& other) noexcept(noexcept(All<std::is_nothrow_move_constructible<Args>::value...>::value))
 	{
-		using mover_function = void(void*, void*);
-		using mover_functionptr = mover_function*;
-		static const mover_functionptr mover[] = { (&VariantOps<Args>::move_construct)... }; // doesn't throw
-		mover[other.selector](as_voidptr(), other.as_voidptr()); // throws if any of the move constructors throws
+		DISPATCH(
+			TYPE( void(void*, void*) ),
+			(&VariantOps<Args>::move_construct)...,
+			other.selector,
+			as_voidptr(), other.as_voidptr()
+		);
 		selector = other.selector; // doesn't throw
 		other.selector = no_value; // doesn't throw
 	}
@@ -298,43 +328,52 @@ public:
 	{
 		if(selector != no_value)
 		{
-			using destroyer_function = void(void*);
-			using destroyer_functionptr = destroyer_function*;
-			static const destroyer_functionptr destroyer[] = { (&VariantOps<Args>::destroy)... };
-			destroyer[selector](as_voidptr());
+			DISPATCH(
+				TYPE( void(void*) ),
+				(&VariantOps<Args>::destroy)...,
+				selector,
+				as_voidptr()
+			);
 			selector = no_value;
 		}
 	}
 
 	const std::type_info& type() const
 	{
-		using typeinfo_function = const std::type_info&();
-		using typeinfo_functionptr = typeinfo_function*;
-		static const typeinfo_functionptr type[] = { (&VariantOps<Args>::typeinfo)... };
-		type[selector]();
+		return DISPATCH(
+			TYPE( const std::type_info&() ),
+			(&VariantOps<Args>::typeinfo)...,
+			selector,
+			/* no arguments */
+		);
 	}
 
 	template<typename... Functions>
 	void type_switch(Functions&&... f)
-	{	
+	{
 		auto ovset = make_overload_set( std::forward<Functions>(f)... );
-		using caller_function = void(void*, void*);
-		using caller_functionptr = caller_function*;
-		static const caller_functionptr calls[] = { (&call_lvalue<decltype(ovset), Args>)... };
-		calls[selector](static_cast<void*>(&ovset), as_voidptr());
+		DISPATCH(
+			TYPE( void(void*, void*) ),
+			(&call_lvalue<decltype(ovset), Args>)...,
+			selector,
+			static_cast<void*>(&ovset), as_voidptr()
+		);
 	}
 
 	template<typename... Functions>
 	void type_switch(Functions&&... f) const
 	{
 		auto ovset = make_overload_set( std::forward<Functions>(f)... );
-		using caller_function = void(void*, void*);
-		using caller_functionptr = caller_function*;
-		static const caller_functionptr calls[] = { (&call_lvalue<decltype(ovset), typename std::add_const<Args>::type>)... };
-		calls[selector](static_cast<void*>(&ovset), as_voidptr());
+		DISPATCH(
+			TYPE( void(void*, void*) ),
+			(&call_lvalue<decltype(ovset), typename std::add_const<Args>::type>)...,
+			selector,
+			static_cast<void*>(&ovset), as_voidptr()
+		);
 	}
 };
 
-
+#undef DISPATCH
+#undef TYPE
 
 #endif
