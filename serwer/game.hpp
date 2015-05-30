@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include "serialization.hpp"
 
 const int ticks_in_a_second = 120;
 
@@ -13,8 +14,8 @@ class Point
 public:
 	Point(int x, int y) : x_(x), y_(y) {}
 
-	int x() { return x_; }
-	int y() { return y_; }
+	int x() const { return x_; }
+	int y() const { return y_; }
 };
 
 class Vector
@@ -24,8 +25,8 @@ class Vector
 public:
 	Vector(int x, int y) : x_(x), y_(y) {}
 
-	int x() { return x_; }
-	int y() { return y_; }
+	int x() const { return x_; }
+	int y() const { return y_; }
 };
 
 Point translate(Point source, Vector displacement);
@@ -42,8 +43,22 @@ enum class Entity
 
 class BombermanLevel
 {
-	int width;
-	std::vector<Entity> entities;
+private:
+	int width_;
+	std::vector<Entity> entities_;
+public:
+	int width() const { return width_; }
+	int height() const { return entities_.size() / width_; }
+
+	Entity& operator[](Point p)
+	{
+		return entities_[p.y() * width_ + p.x()];
+	}
+
+	const Entity& operator[](Point p) const
+	{
+		return entities_[p.y() * width_ + p.x()];
+	}
 };
 
 class BombermanGame
