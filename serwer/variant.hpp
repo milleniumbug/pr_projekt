@@ -343,6 +343,12 @@ private:
 	}
 
 public:
+	Variant() :
+		selector(no_value)
+	{
+
+	}
+
 	template<typename T, typename = typename std::enable_if<detail::Contains<T, Args...>::value>::type>
 	Variant(T&& value) :
 		selector(no_value)
