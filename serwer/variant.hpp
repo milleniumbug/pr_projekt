@@ -6,6 +6,14 @@
 #include <utility>
 #include <type_traits>
 
+struct Default
+{
+
+};
+
+namespace detail
+{
+
 template<typename T>
 struct Identity
 {
@@ -181,7 +189,7 @@ struct VariantOps
 };
 
 template<typename Function, typename Arg>
-static void call_lvalue(void* fptr, void* argptr)
+static void call_lvalue(const void* fptr, const void* argptr)
 {
 	auto& f = *(Function*)fptr;
 	auto& arg = *(Arg*)argptr;
@@ -220,17 +228,93 @@ struct OverloadSet<Head, Tail...> : Head, OverloadSet<Tail...>
 };
 
 template<typename... Args>
-OverloadSet<Args...> make_overload_set(Args&&... args)
+OverloadSet<typename std::remove_reference<Args>::type...> make_overload_set(Args&&... args)
 {
-	return OverloadSet<Args...>(std::forward<Args>(args)...);
+	return OverloadSet<typename std::remove_reference<Args>::type...>(std::forward<Args>(args)...);
 }
 
-#include <iostream>
+template<typename T, typename F>
+struct BinderLast
+{
+	template<typename... Args>
+	auto operator()(Args&&... args) const
+	{
+		return (*fun)(std::forward<Args>(args)..., *val);
+	}
+
+	F* fun;
+	T* val;
+};
+
+template<typename T, typename F>
+BinderLast<T, F> bind_last(F& f, T& val)
+{
+	BinderLast<T, F> b;
+	b.fun = &f;
+	b.val = &val;
+	return b;
+}
+
+template<typename T, typename F>
+struct BinderFirst
+{
+	template<typename... Args>
+	auto operator()(Args&&... args) const
+	{
+		return (*fun)(*val, std::forward<Args>(args)...);
+	}
+
+	F* fun;
+	T* val;
+};
+
+template<typename T, typename F>
+BinderFirst<T, F> bind_first(F& f, T& val)
+{
+	BinderFirst<T, F> b;
+	b.fun = &f;
+	b.val = &val;
+	return b;
+}
+
+template<unsigned I> struct choice : choice<I+1>{};
+template<> struct choice<1>{};
+ 
+struct otherwise{ otherwise(...){} };
+
+struct select_overload : choice<0>{};
+
+template<typename Function,
+         typename... Args>
+auto call_with_default(choice<0>, Function f, Args&&... args) -> decltype(f(std::forward<Args>(args)...), void())
+{
+	return f(std::forward<Args>(args)...);
+}
+
+template<typename Function,
+         typename... Args>
+void call_with_default(choice<1>, Function f, Args&&... args)
+{
+	return f(Default());
+}
+
+template<typename... Args>
+auto make_overload_set_with_default(Args&&... args)
+{
+	return
+	[ovset = make_overload_set(std::forward<Args>(args)...)]
+	(auto&&... args)
+	{
+		call_with_default(select_overload(), ovset, std::forward<decltype(args)>(args)...);
+	};
+}
+
+}
 
 // usage: TYPE(std::pair<int, int>)
-#define TYPE(...) IdentityAlias<__VA_ARGS__>
+#define TYPE(...) detail::IdentityAlias<__VA_ARGS__>
 #define DISPATCH(functiontype, what, index, ...) \
-[&]() -> SignatureReturnType< functiontype >::type \
+[&]() -> detail::SignatureReturnType< functiontype >::type \
 { \
 	using DISPATCH_function = functiontype; \
 	using DISPATCH_functionptr = DISPATCH_function*; \
@@ -244,41 +328,31 @@ class Variant
 private:
 	static const std::size_t no_value = static_cast<std::size_t>(-1);
 	std::size_t selector;
-	typename AlignedUnion<Args...>::type storage;
-
-	void* as_voidptr()
-	{
-		return static_cast<void*>(&storage);
-	}
-
-	const void* as_voidptr() const
-	{
-		return static_cast<const void*>(&storage);
-	}
+	typename detail::AlignedUnion<Args...>::type storage;
 
 	template<typename T>
 	T& as_type()
 	{
-		return *static_cast<T*>(as_voidptr());
+		return *static_cast<T*>(raw());
 	}
 
 	template<typename T>
 	const T& as_type() const
 	{
-		return *static_cast<const T*>(as_voidptr());
+		return *static_cast<const T*>(raw());
 	}
 
 public:
-	template<typename T, typename = typename std::enable_if<Contains<T, Args...>::value>::type>
+	template<typename T, typename = typename std::enable_if<detail::Contains<T, Args...>::value>::type>
 	Variant(T&& value) :
 		selector(no_value)
 	{
-		::new(as_voidptr()) T(std::forward<T>(value));
-		selector = Find<T, Args...>::value;
+		::new(raw()) T(std::forward<T>(value));
+		selector = detail::Find<T, Args...>::value;
 	}
 
 	// TODO: Make it provide strong exception guarantee
-	template<typename T, typename = typename std::enable_if<Contains<T, Args...>::value>::type>
+	template<typename T, typename = typename std::enable_if<detail::Contains<T, Args...>::value>::type>
 	Variant& operator=(T&& value)
 	{
 		this->~Variant(); // doesn't throw
@@ -290,20 +364,20 @@ public:
 	{
 		DISPATCH(
 			TYPE( void(void*, const void*) ),
-			(&VariantOps<Args>::copy_construct)...,
+			(&detail::VariantOps<Args>::copy_construct)...,
 			other.selector,
-			as_voidptr(), other.as_voidptr()
+			raw(), other.raw()
 		);
 		selector = other.selector;
 	}
 
-	Variant(Variant&& other) noexcept(noexcept(All<std::is_nothrow_move_constructible<Args>::value...>::value))
+	Variant(Variant&& other) noexcept(noexcept(detail::All<std::is_nothrow_move_constructible<Args>::value...>::value))
 	{
 		DISPATCH(
 			TYPE( void(void*, void*) ),
-			(&VariantOps<Args>::move_construct)...,
+			(&detail::VariantOps<Args>::move_construct)...,
 			other.selector,
-			as_voidptr(), other.as_voidptr()
+			raw(), other.raw()
 		);
 		selector = other.selector; // doesn't throw
 		other.selector = no_value; // doesn't throw
@@ -317,7 +391,7 @@ public:
 	}
 
 	// TODO: Make it provide strong exception guarantee
-	Variant& operator=(Variant&& other) noexcept(noexcept(All<std::is_nothrow_move_constructible<Args>::value...>::value))
+	Variant& operator=(Variant&& other) noexcept(noexcept(detail::All<std::is_nothrow_move_constructible<Args>::value...>::value))
 	{
 		this->~Variant(); // doesn't throw
 		::new(static_cast<void*>(this)) Variant(std::move(other)); // FAIL: if it throws, the object is in unusable state
@@ -330,9 +404,9 @@ public:
 		{
 			DISPATCH(
 				TYPE( void(void*) ),
-				(&VariantOps<Args>::destroy)...,
+				(&detail::VariantOps<Args>::destroy)...,
 				selector,
-				as_voidptr()
+				raw()
 			);
 			selector = no_value;
 		}
@@ -342,36 +416,97 @@ public:
 	{
 		return DISPATCH(
 			TYPE( const std::type_info&() ),
-			(&VariantOps<Args>::typeinfo)...,
+			(&detail::VariantOps<Args>::typeinfo)...,
 			selector,
 			/* no arguments */
 		);
 	}
 
-	template<typename... Functions>
-	void type_switch(Functions&&... f)
+	std::size_t which() const
 	{
-		auto ovset = make_overload_set( std::forward<Functions>(f)... );
-		DISPATCH(
-			TYPE( void(void*, void*) ),
-			(&call_lvalue<decltype(ovset), Args>)...,
-			selector,
-			static_cast<void*>(&ovset), as_voidptr()
-		);
+		return selector;
 	}
 
-	template<typename... Functions>
-	void type_switch(Functions&&... f) const
+	bool empty() const
 	{
-		auto ovset = make_overload_set( std::forward<Functions>(f)... );
-		DISPATCH(
-			TYPE( void(void*, void*) ),
-			(&call_lvalue<decltype(ovset), typename std::add_const<Args>::type>)...,
-			selector,
-			static_cast<void*>(&ovset), as_voidptr()
-		);
+		return selector != no_value;
+	}
+
+	void* raw()
+	{
+		return static_cast<void*>(&storage);
+	}
+
+	const void* raw() const
+	{
+		return static_cast<const void*>(&storage);
 	}
 };
+
+namespace detail
+{
+
+template<typename V>
+struct IsVariant : std::false_type
+{
+
+};
+
+template<typename... Args>
+struct IsVariant<Variant<Args...>> : std::true_type
+{
+
+};
+
+}
+
+template<typename... VariantArgs, typename Function>
+void dispatch(Function fn, Variant<VariantArgs...>& var)
+{
+	DISPATCH(
+		TYPE( void(const void*, const void*) ),
+		(&detail::call_lvalue<Function, VariantArgs>)...,
+		var.which(),
+		static_cast<void*>(&fn), var.raw()
+	);
+}
+
+
+template<typename... VariantArgs, typename Function>
+void dispatch(Function fn, const Variant<VariantArgs...>& var)
+{
+	DISPATCH(
+		TYPE( void(const void*, const void*) ),
+		(&detail::call_lvalue<Function, typename std::add_const<VariantArgs>::type>)...,
+		var.which(),
+		static_cast<void*>(&fn), var.raw()
+	);
+}
+
+template<typename... V, typename... VariantArgs, typename Function>
+void dispatch(Function fn, Variant<VariantArgs...>& var, V&&... vars)
+{
+	dispatch([&](auto&& x)
+	{
+		dispatch(bind_last(fn, x), var);
+	}, std::forward<V>(vars)...);
+}
+
+template<typename... V, typename... VariantArgs, typename Function>
+void dispatch(Function fn, const Variant<VariantArgs...>& var, V&&... vars)
+{
+	dispatch([&](auto&& x)
+	{
+		dispatch(bind_last(fn, x), var);
+	}, std::forward<V>(vars)...);
+}
+
+template<typename... Args>
+auto functions(Args&&... args)
+{
+	return detail::make_overload_set_with_default(std::forward<Args>(args)...);
+}
+
 
 #undef DISPATCH
 #undef TYPE

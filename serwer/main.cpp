@@ -65,14 +65,6 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 	}
 }
 
-struct Blackhole
-{
-	template<typename... Args>
-	void operator()(Args&&... args)
-	{
-
-	}
-};
 template<typename InputIterator>
 void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator end)
 {
@@ -109,6 +101,14 @@ void debug_output(std::ostream& out, InputIterator begin, InputIterator end)
 	});
 }
 
+struct Blackhole
+{
+	template<typename... Args>
+	void operator()(Args&&... args)
+	{
+
+	}
+};
 
 int main()
 {
