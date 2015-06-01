@@ -343,18 +343,18 @@ private:
 	}
 
 public:
-	Variant() :
-		selector(no_value)
-	{
-
-	}
-
 	template<typename T, typename = typename std::enable_if<detail::Contains<T, Args...>::value>::type>
 	Variant(T&& value) :
 		selector(no_value)
 	{
 		::new(raw()) T(std::forward<T>(value));
 		selector = detail::Find<T, Args...>::value;
+	}
+
+	Variant() :
+		Variant(typename detail::NthType<0, Args...>::type())
+	{
+
 	}
 
 	// TODO: Make it provide strong exception guarantee
@@ -477,7 +477,6 @@ void dispatch(Function fn, Variant<VariantArgs...>& var)
 	);
 }
 
-
 template<typename... VariantArgs, typename Function>
 void dispatch(Function fn, const Variant<VariantArgs...>& var)
 {
@@ -494,7 +493,7 @@ void dispatch(Function fn, Variant<VariantArgs...>& var, V&&... vars)
 {
 	dispatch([&](auto&& x)
 	{
-		dispatch(bind_last(fn, x), var);
+		dispatch(detail::bind_last(fn, x), var);
 	}, std::forward<V>(vars)...);
 }
 
@@ -503,7 +502,7 @@ void dispatch(Function fn, const Variant<VariantArgs...>& var, V&&... vars)
 {
 	dispatch([&](auto&& x)
 	{
-		dispatch(bind_last(fn, x), var);
+		dispatch(detail::bind_last(fn, x), var);
 	}, std::forward<V>(vars)...);
 }
 
