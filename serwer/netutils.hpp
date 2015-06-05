@@ -1,15 +1,27 @@
 #ifndef NETUTILS_HPP
 #define NETUTILS_HPP
 
+#include <array>
+
 class IPv4Address
 {
 private:
-	unsigned char addr[4];
+	std::array<unsigned char, 4> addr;
 
 public:
 	uint32_t as_uint();
 	IPv4Address(int octet_a, int octet_b, int octet_c, int octet_d);
 	IPv4Address();
+
+	friend bool operator==(const IPv4Address& lhs, const IPv4Address& rhs)
+	{
+		return std::equal(lhs.addr.begin(), lhs.addr.end(), rhs.addr.begin());
+	}
+
+	friend bool operator!=(const IPv4Address& lhs, const IPv4Address& rhs)
+	{
+		return !(lhs == rhs);
+	}
 };
 
 class FileDescriptor

@@ -278,7 +278,7 @@ BinderFirst<T, F> bind_first(F& f, T& val)
 }
 
 template<unsigned I> struct choice : choice<I+1>{};
-template<> struct choice<1>{};
+template<> struct choice<5>{};
  
 struct otherwise{ otherwise(...){} };
 
@@ -293,7 +293,14 @@ auto call_with_default(choice<0>, Function f, Args&&... args) -> decltype(f(std:
 
 template<typename Function,
          typename... Args>
-void call_with_default(choice<1>, Function f, Args&&... args)
+auto call_with_default(choice<1>, Function f, Args&&... args) -> decltype(f(std::forward<Args>(args)...), void())
+{
+	return f(std::forward<Args>(args)...);
+}
+
+template<typename Function,
+         typename... Args>
+void call_with_default(choice<2>, Function f, Args&&... args)
 {
 	return f(Default());
 }
