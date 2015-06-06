@@ -188,7 +188,7 @@ template<typename OutputIterator>
 void serialize_to(OutputIterator output, BombermanGame& gamestate)
 {
 	// TODO
-	serialize_to(output, static_cast<uint32_t>(0));
+	serialize_to(output, static_cast<uint32_t>(0xDEADBEEF));
 	for(auto& x : gamestate.current_level)
 	{
 		char deserialized_entity;
@@ -207,7 +207,7 @@ void serialize_to(OutputIterator output, BombermanGame& gamestate)
 		serialize_to(output, static_cast<uint16_t>(pos.x()));
 		serialize_to(output, static_cast<uint16_t>(pos.y()));
 		// TODO
-		serialize_to(output, static_cast<uint32_t>(0));
+		serialize_to(output, static_cast<uint32_t>(0xBABECAFE));
 	}
 }
 
