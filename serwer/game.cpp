@@ -66,14 +66,13 @@ void Bomb::trigger_explosion(BombermanGame& world, Point position)
 			if(player.position() == position)
 				player.hurt();
 		
-		const auto& cworld = world;
 		using namespace std::placeholders;
 		std::transform(
 			neighbour_positions.begin(),
 			neighbour_positions.end(),
 			directions.begin(),
 			neighbour_positions.begin(),
-			std::bind(&BombermanGame::translate, &cworld, _1, _2));
+			std::bind(&BombermanGame::translate, &world, _1, _2));
 		for(auto x : neighbour_positions)
 		{
 			dispatch(functions(
