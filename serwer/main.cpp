@@ -122,6 +122,13 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
 		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
 	}
+	else
+	{
+		serialize_to(output, RodzajKomunikatu::nieznany_komunikat);
+		std::string komunikat = "Gra się nie rozpoczęła";
+		std::copy(komunikat.begin(), komunikat.end(), output);
+		*output++ = '\0';
+	}
 }
 
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections>
@@ -296,6 +303,8 @@ int main()
 
 			std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << ", tick numer: " << tick_number << "\r" << std::flush;
 			world.refresh();
+			for(auto& playerconn : connections)
+				--playerconn.timeout;
 		}
 
 		if(FD_ISSET(socket.fd(), &rfds))
