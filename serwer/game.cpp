@@ -37,6 +37,19 @@ bool BombermanGame::refresh()
 		player.refresh(*this);
 }
 
+Point BombermanGame::translate(Point source, Vector displacement) const
+{
+	Point new_pos = ::translate(source, displacement);
+	if(new_pos.x() < 0)
+		new_pos = Point(0, new_pos.y());
+	if(new_pos.y() < 0)
+		new_pos = Point(new_pos.x(), 0);
+	if(new_pos.x() >= width())
+		new_pos = Point(width()-1, new_pos.y());
+	if(new_pos.y() >= height())
+		new_pos = Point(new_pos.x(), height()-1);
+}
+
 Point translate(Point source, Vector displacement)
 {
 	return Point(source.x() + displacement.x(), source.y() + displacement.y());
@@ -53,7 +66,14 @@ void Bomb::trigger_explosion(BombermanGame& world, Point position)
 			if(player.position() == position)
 				player.hurt();
 		
-		std::transform(neighbour_positions.begin(), neighbour_positions.end(), directions.begin(), neighbour_positions.begin(), translate);
+		const auto& cworld = world;
+		using namespace std::placeholders;
+		std::transform(
+			neighbour_positions.begin(),
+			neighbour_positions.end(),
+			directions.begin(),
+			neighbour_positions.begin(),
+			std::bind(&BombermanGame::translate, &cworld, _1, _2));
 		for(auto x : neighbour_positions)
 		{
 			dispatch(functions(
@@ -98,7 +118,7 @@ void Player::refresh(BombermanGame& world)
 
 	if(direction_ != 0 && time_to_stop_ <= 0)
 	{
-		Point next_pos = translate(position_, direction_from_int(direction_));
+		Point next_pos = world.translate(position_, direction_from_int(direction_));
 		bool is_passable;
 		dispatch([&](auto x){ is_passable = decltype(x)::is_passable::value; }, world[next_pos]);
 		if(is_passable)
@@ -106,6 +126,7 @@ void Player::refresh(BombermanGame& world)
 		time_to_stop_ = next_move;
 	}
 
+	// TODO: kładź bombę
 }
 
 void Player::hurt()

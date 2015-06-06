@@ -166,6 +166,8 @@ public:
 		return current_level[p];
 	}
 
+	Point translate(Point source, Vector displacement) const;
+
 	BombermanGame(BombermanLevel level) :
 		current_level(std::move(level))
 	{
