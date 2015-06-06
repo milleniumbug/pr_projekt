@@ -82,10 +82,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Loader.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Player.cpp" />
+    <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="TexArray.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Loader.h" />
+    <ClInclude Include="main.h" />
+    <ClInclude Include="Player.h" />
+    <ClInclude Include="Renderer.h" />
     <ClInclude Include="TexArray.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
