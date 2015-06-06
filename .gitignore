@@ -33,3 +33,5 @@
 *.lastbuildstate
 *.idb
 *.sdf
+*.opensdf
+*.suo

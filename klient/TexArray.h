@@ -8,7 +8,7 @@ using namespace std;
 class TexArray
 {
 	public:
-	TexArray(string path, SDL_Renderer* ren);
+	TexArray(string path);
 
 	~TexArray();
 
@@ -17,6 +17,4 @@ class TexArray
 	SDL_Texture* left;
 	SDL_Texture* right;
 	SDL_Texture* current;
-
-	SDL_Renderer* ren;
 };
