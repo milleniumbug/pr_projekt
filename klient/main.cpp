@@ -7,6 +7,7 @@
 #include "Loader.h"
 #include "Player.h"
 #include "Renderer.h"
+#include "Connection.h"
 
 
 using namespace std;
@@ -21,21 +22,42 @@ SDL_Color colorKey = {255, 255, 0, 255};
 int ticks = 0;
 int framesCount = 0;
 int tempFramesCount = 0;
+int mapSize = 13;
+int versionNumber = 1;
 
 //magia visuala, mam zalinkowan¹ bibliotekê we w³aœciwoœciach projektu, ale ten jej nie widzi ;D
 //a ta linijka magicznie dzia³a o.o
 #pragma comment(lib, "..\\SDL2_gfx-1.0.1\\lib\\SDL2_gfx.lib")
+#pragma comment(lib,"ws2_32.lib")
 
 SDL_Texture* texBlock;
+SDL_Texture* arrowRight;
 Player* p1 = NULL;
 Player* p2 = NULL;
 Player* p3 = NULL;
 Player* p4 = NULL;
 Player* controlledPlayer = NULL;
 
-int windowW = 768, windowH = 768;
-int playerSize = 48;
 int tileSize = 64;
+int windowW = mapSize * tileSize, windowH = mapSize * tileSize;
+int playerSize = 48;
+
+enum class PacketType : byte
+{
+	ClientJoinGame = 0x01,
+	ServerAccept = 0x02,
+	ClientRequestGameState = 0x03,
+	ServerSendGameState = 0x04,
+	ClientRequestServerInfo = 0x05,
+	ServerSendServerInfo = 0x06,
+	ClientKeepAlive = 0x07,
+	ClientDisconnect = 0x08,
+	ClientPlayerAction = 0x09,
+	ServerUnknownPacket = 0x71,
+	ServerIncompatibleVersion = 0x72,
+	ServerGameAlreadyStarted = 0x73,
+	ServerIsFull = 0x74
+};
 
 class Block
 {
@@ -62,29 +84,36 @@ class Block
 	}
 };
 
-Block map[12][12];
+Block** map;
 SDL_Texture** blockTextures;
 
 void generateMap()
 {
 	srand(GetTickCount());
-	for (int i = 0; i < 12; i++)
-		for (int j = 0; j < 12; j++)
-			map[i][j] = Block(rand() % 2, 64, i, j);
+	map = new Block*[mapSize];
+	for (int i = 0; i < mapSize; i++)
+	{
+		map[i] = new Block[mapSize];
+		for (int j = 0; j < mapSize; j++)
+			map[i][j] = Block(rand() % 2, tileSize, i, j);
+	}
 
 	//piêkne linijki - wyczyszczenie rogów mapy, tak aby by³o miejsce gdzie postawiæ bombê
-	map[0][0] = Block(0, 64, 0, 0);
-	map[0][1] = Block(0, 64, 0, 1);
-	map[1][0] = Block(0, 64, 1, 0);
-	map[11][0] = Block(0, 64, 11, 0);
-	map[11][1] = Block(0, 64, 11, 1);
-	map[10][0] = Block(0, 64, 10, 0);
-	map[11][10] = Block(0, 64, 11, 0);
-	map[11][11] = Block(0, 64, 11, 1);
-	map[10][0] = Block(0, 64, 10, 0);
-	map[0][10] = Block(0, 64, 11, 0);
-	map[0][11] = Block(0, 64, 11, 1);
-	map[1][11] = Block(0, 64, 10, 0);
+	map[0][0] = Block(0, tileSize, 0, 0);
+	map[1][0] = Block(0, tileSize, 1, 0);
+	map[0][1] = Block(0, tileSize, 0, 1);
+
+	map[mapSize - 1][0] = Block(0, tileSize, mapSize - 1, 0);
+	map[mapSize - 1][1] = Block(0, tileSize, mapSize - 1, 1);
+	map[mapSize - 2][0] = Block(0, tileSize, mapSize - 2, 0);
+
+	map[0][mapSize - 1] = Block(0, tileSize, 0, mapSize - 1);
+	map[1][mapSize - 1] = Block(0, tileSize, 1, mapSize - 1);
+	map[0][mapSize - 2] = Block(0, tileSize, 0, mapSize - 2);
+
+	map[mapSize - 1][mapSize - 1] = Block(0, tileSize, mapSize - 1, mapSize - 1);
+	map[mapSize - 1][mapSize - 2] = Block(0, tileSize, mapSize - 1, mapSize - 2);
+	map[mapSize - 2][mapSize - 1] = Block(0, tileSize, mapSize - 2, mapSize - 1);
 }
 
 void drawFPS()
@@ -119,6 +148,150 @@ void nextPlayer()
 		controlledPlayer = p4;
 	else if (controlledPlayer == p4)
 		controlledPlayer = p1;
+}
+
+bool canBeIP(SDL_Keycode k)
+{
+	if ((k >= SDLK_a && k <= SDLK_z) || (k >= SDLK_0 && k <= SDLK_9) || (k == SDLK_PERIOD) || (k == SDLK_SEMICOLON) || (k == SDLK_BACKSPACE))
+		return true;
+	return false;
+}
+
+//Menu
+//IP:PORT textfield
+//Info bout server
+//Connect
+//Get Info
+//Exit
+
+Connection connection;
+
+int selectedEntry = 0;
+string infoString = "";
+string ipPortString = "192.168.56.101:60000";
+
+void GetServerInfo()
+{
+	infoString = "";
+	string myIpPortString = ipPortString;
+	string ip = "";
+	int port = -1;
+
+	char* pch;
+	pch = strtok((char*)myIpPortString.c_str(), ":");
+	int i = 0;
+	while (pch != NULL)
+	{
+		if (i == 0)
+		{
+			ip = pch;
+			i++;
+			pch = strtok(NULL, ":");
+		}
+		else if (i == 1)
+		{
+			port = strtol(pch, NULL, 10);
+			break;
+		}
+	}
+	if (port == -1)
+		port = 60000;
+
+	connection.Connect(ip, port);
+	Packet p;
+	p.AllocData(5);
+	p.AddInt(versionNumber);
+	p.AddByte(5);
+	connection.Send(p);
+	p.DeleteData();
+	Packet r = connection.Recv();
+	if (r.RecvResult > 0)
+	{
+		int serverVersion = r.ReadInt();
+		if (serverVersion != versionNumber)
+		{
+			infoString = "Wrong version number: " + to_string(serverVersion);
+			r.DeleteData();
+			return;
+		}
+		byte packetType = r.ReadByte();
+		if (packetType != (byte)PacketType::ServerSendServerInfo)
+		{
+			r.DeleteData();
+			infoString = "Broken server (?)";
+			return;
+		}
+		byte connectedPlayers = r.ReadByte();
+		byte maxPlayers = r.ReadByte();
+		byte gameState = r.ReadByte();
+		short xSize = r.ReadShort();
+		short ySize = r.ReadShort();
+		infoString.append("Server status: ");
+		infoString.append(to_string(connectedPlayers));
+		infoString.append("/");
+		infoString.append(to_string(maxPlayers));
+		if (gameState == 1)
+			infoString.append(" Waiting for players");
+		else
+			infoString.append(" Game in progress");
+		infoString.append(" MapSize: ");
+		infoString.append(to_string(xSize));
+		infoString.append(", ");
+		infoString.append(to_string(ySize));
+	}
+	else
+	{
+		infoString = "Dupa nie polaczenie";
+	}
+	r.DeleteData();
+}
+
+void RenderMenu()
+{
+	Renderer::RenderText("Info :" + infoString, font, white, 100, 80);
+	Renderer::RenderText("IP:PORT = " + ipPortString, font, white, 100, 100);
+	Renderer::RenderText("Connect", font, white, 100, 120);
+	Renderer::RenderText("Get Info", font, white, 100, 140);
+	Renderer::RenderText("Exit", font, white, 100, 160);
+	Renderer::RenderTexture(arrowRight, 60, 90 + selectedEntry*20, 32, 32);
+}
+
+void HandleMenuKeyboard(SDL_Event e)
+{
+	if (e.type == SDL_KEYUP)
+	{
+		if (e.key.keysym.sym == SDLK_UP)
+			selectedEntry--;
+		if (e.key.keysym.sym == SDLK_DOWN)
+			selectedEntry++;
+		if (selectedEntry < 0)
+			selectedEntry = 0;
+		if (selectedEntry > 3)
+			selectedEntry = 3;
+
+		if (canBeIP(e.key.keysym.sym) && selectedEntry == 0)
+		{
+			if (e.key.keysym.sym != SDLK_BACKSPACE && e.key.keysym.sym != SDLK_SEMICOLON)
+				ipPortString.push_back(e.key.keysym.sym);
+			
+			else if (e.key.keysym.sym == SDLK_SEMICOLON && (e.key.keysym.mod & KMOD_LSHIFT || e.key.keysym.mod & KMOD_RSHIFT))
+				ipPortString.push_back(':');
+			else if (ipPortString.size() > 0 && e.key.keysym.sym == SDLK_BACKSPACE)
+				ipPortString.pop_back();
+
+		}
+
+		if (e.key.keysym.sym == SDLK_RETURN)
+		{
+			switch (selectedEntry)
+			{
+				case 0:	break;
+				case 1: /*TODO: Connect*/ break;
+				case 2: CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)GetServerInfo, NULL, NULL, NULL); break;
+				case 3: doExit = true; break;
+			}
+		}
+	}
 }
 
 
@@ -164,14 +337,14 @@ int mapY = 0;
 
 bool collidesWithBlock(int playerX, int playerY, Block b)
 {
-	POINT TopLeft = {playerX, playerY}, TopRight = {playerX + 48, playerY}, BottomLeft = {playerX, playerY + 48}, BottomRight {playerX + 48, playerY + 48};
-	if (TopLeft.x > b.x * 64 && TopLeft.x < b.x * 64 + 64 && TopLeft.y > b.y * 64 && TopLeft.y < b.y * 64 + 64)
+	POINT TopLeft = {playerX, playerY}, TopRight = {playerX + playerSize, playerY}, BottomLeft = {playerX, playerY + playerSize}, BottomRight {playerX + playerSize, playerY + playerSize};
+	if (TopLeft.x > b.x * tileSize && TopLeft.x < b.x * tileSize + tileSize && TopLeft.y > b.y * tileSize && TopLeft.y < b.y * tileSize + tileSize)
 		return true;
-	if (TopRight.x > b.x * 64 && TopRight.x < b.x * 64 + 64 && TopRight.y > b.y * 64 && TopRight.y < b.y * 64 + 64)
+	if (TopRight.x > b.x * tileSize && TopRight.x < b.x * tileSize + tileSize && TopRight.y > b.y * tileSize && TopRight.y < b.y * tileSize + tileSize)
 		return true;
-	if (BottomLeft.x > b.x * 64 && BottomLeft.x < b.x * 64 + 64 && BottomLeft.y > b.y * 64 && BottomLeft.y < b.y * 64 + 64)
+	if (BottomLeft.x > b.x * tileSize && BottomLeft.x < b.x * tileSize + tileSize && BottomLeft.y > b.y * tileSize && BottomLeft.y < b.y * tileSize + tileSize)
 		return true;
-	if (BottomRight.x > b.x * 64 && BottomRight.x < b.x * 64 + 64 && BottomRight.y > b.y * 64 && BottomRight.y < b.y * 64 + 64)
+	if (BottomRight.x > b.x * tileSize && BottomRight.x < b.x * tileSize + tileSize && BottomRight.y > b.y * tileSize && BottomRight.y < b.y * tileSize + tileSize)
 		return true;
 	return false;
 }
@@ -190,7 +363,7 @@ int collides()
 				continue;*/
 			int X = mapX + i;
 			int Y = mapY + j;
-			if (X < 0 || X > 11 || Y < 0 || Y > 11)
+			if (X < 0 || X > mapSize - 1 || Y < 0 || Y > mapSize - 1)
 				continue;
 			Block b = map[X][Y];
 			if (b.type != 0)
@@ -254,6 +427,41 @@ void moveThread()
 	}
 }
 
+void recvThread()
+{
+	while (true)
+	{
+		Packet pucket = connection.Recv();
+		if (pucket.RecvResult >= 0)
+			MessageBoxA(0, "Odbiooor kurwa", "Lal", MB_OK);
+	}
+}
+
+void sendThread()
+{
+}
+
+void initConnection()
+{
+	if (connection.State != 0)
+	{
+		MessageBoxA(0, "Cos sie wyjebao", "Lol", MB_OK);
+		return;
+	}
+	int result = connection.Connect("192.168.56.101", 60000);
+	if (result != 0)
+	{
+		MessageBoxA(0, "Rzadka kupa a nie connection", "Lel", MB_OK);
+		return;
+	}
+	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)recvThread, NULL, NULL, NULL);
+	Packet p;
+	p.AllocData(5);
+	p.AddInt(1);
+	p.AddByte(5);
+	int r = connection.Send(p);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -300,13 +508,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ticks = GetTickCount();
 
 	texBlock = Loader::LoadTexture(mainPath + "gfx\\block.bmp");
+	arrowRight = Loader::LoadTexture(mainPath + "gfx\\arrow.bmp");
 	p1 = new Player(0, 1, 0, 0, 48, mainPath + "gfx\\player1.bmp");
-	p2 = new Player(1, 3, 11, 0, 48, mainPath + "gfx\\player2.bmp");
-	p3 = new Player(2, 1, 0, 11, 48, mainPath + "gfx\\player3.bmp");
-	p4 = new Player(3, 3, 11, 11, 48, mainPath + "gfx\\player4.bmp");
+	p2 = new Player(1, 3, 12, 0, 48, mainPath + "gfx\\player2.bmp");
+	p3 = new Player(2, 1, 0, 12, 48, mainPath + "gfx\\player3.bmp");
+	p4 = new Player(3, 3, 12, 12, 48, mainPath + "gfx\\player4.bmp");
 	controlledPlayer = p1;
 
 	HANDLE moveThreadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)moveThread, NULL, NULL, NULL);
+	//CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)initConnection, NULL, NULL, NULL);
 
 	SDL_Event e;
 	while (!doExit)
@@ -316,16 +526,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if (e.type == SDL_QUIT)
 				doExit = true;
 			if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP)
-				HandleKeyboard(e);
+				HandleMenuKeyboard(e);
 		}
 		//Render the scene
 		SDL_RenderClear(ren);
 		SDL_Rect fillRect = {windowH, windowW, 0, 0}; 
 		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255); 
 		SDL_RenderFillRect(ren, &fillRect);
-		for (int i = 0; i < 12; i++)
+		RenderMenu();
+		/*for (int i = 0; i < mapSize; i++)
 		{
-			for (int j = 0; j < 12; j++)
+			for (int j = 0; j < mapSize; j++)
 			{
 				if (map[i][j].type != 0)
 					Renderer::RenderTexture(texBlock, i*tileSize, j * tileSize, tileSize, tileSize);
@@ -334,7 +545,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		p1->Render(); p2->Render(); p3->Render(); p4->Render();
 		drawFPS();
 		Renderer::RenderText("X: " + to_string(controlledPlayer->X) + " Y: " + to_string(controlledPlayer->Y), font, white, 10, 70);
-		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);
+		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);*/
 		SDL_RenderPresent(ren);
 		//Sleep(33);
 	}
