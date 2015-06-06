@@ -6,8 +6,8 @@
 static_assert(CHAR_BIT == 8, "char musi mieć 8 bitów");
 const std::uint32_t wersja_serwera = 1;
 
-//const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
-const struct timespec logical_tick_time = { 5, 0 }; // do testów
+const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
+//const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / 2) }; // do testów
 
 #define OVERLOAD_SET(name) ([&](auto&&... args) -> decltype(auto) { return name(std::forward<decltype(args)>(args)...); })
 
@@ -26,6 +26,12 @@ enum class RodzajKomunikatu : unsigned char
 	niekompatybilna_wersja = 0x72,
 	gra_juz_rozpoczeta = 0x73,
 	serwer_pelny = 0x74
+};
+
+enum class StanGry : unsigned char
+{
+	oczekiwanie_na_polaczenia = 0x01,
+	gra_w_trakcie = 0x02
 };
 
 template<typename RandomAccessIterator, typename Function>
@@ -65,31 +71,66 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 	}
 }
 
+const int max_timeout_time = ticks_in_a_second*10;
+
 struct PlayerConnection
 {
 	IPv4Address ip;
 	int port;
 	Player* player;
 	int timeout;
+
+	PlayerConnection(IPv4Address ip, int port, Player* player) :
+		ip(ip),
+		port(port),
+		player(player),
+		timeout(max_timeout_time)
+	{
+
+	}
+
 };
 
-const int max_timeout_time = ticks_in_a_second*10;
+bool czy_to_ten_gracz(const PlayerConnection& c, IPv4Address ip, int port)
+{
+	return c.ip == ip && c.port == port;
+}
+
+template<typename OutputIterator, typename RandomAccessIterator, typename Connections>
+void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, Connections& conns, BombermanGame& game, StanGry stan_gry)
+{
+	serialize_to(output, static_cast<uint8_t>(conns.size()));
+	serialize_to(output, static_cast<uint8_t>(game.players.size()));
+	serialize_to(output, stan_gry);
+	serialize_to(output, static_cast<uint16_t>(game.current_level.width()));
+	serialize_to(output, static_cast<uint16_t>(game.current_level.height()));
+}
 
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections, typename GameStarter>
 void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, RodzajKomunikatu komunikat, Connections& conns, BombermanGame& game, GameStarter rozpocznij_gre)
 {
+	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
+	
 	if(komunikat == RodzajKomunikatu::przylacz_sie)
 	{
 		if(conns.size() < game.players.size())
 		{
 			auto pos = conns.size();
-			PlayerConnection conn;
-			conn.ip = ip;
-			conn.port = port;
-			conn.player = &game.players[pos];
-			conn.timeout = ticks_in_a_second*10;
-			conns.push_back(conn);
-			serialize_to(output, RodzajKomunikatu::zaakceptowanie);
+			
+			if(std::find_if(conns.begin(), conns.end(), dobry_gracz) == conns.end())
+			{
+				PlayerConnection conn(ip, port, &game.players[pos]);
+				conns.push_back(conn);
+				serialize_to(output, RodzajKomunikatu::zaakceptowanie);
+				odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
+			}
+			else
+			{
+				serialize_to(output, RodzajKomunikatu::nieznany_komunikat);
+				std::string komunikat = "Już jesteś połączony";
+				std::copy(komunikat.begin(), komunikat.end(), output);
+				*output++ = '\0';
+			}
 			if(conns.size() == game.players.size())
 				rozpocznij_gre();
 		}
@@ -102,8 +143,14 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
 	{
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
-		// TODO
-		serialize_to(output, static_cast<uint8_t>(conns.size()));
+		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
+	}
+	else
+	{
+		serialize_to(output, RodzajKomunikatu::nieznany_komunikat);
+		std::string komunikat = "Gra się nie rozpoczęła";
+		std::copy(komunikat.begin(), komunikat.end(), output);
+		*output++ = '\0';
 	}
 }
 
@@ -117,11 +164,8 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 		std::copy(komunikat.begin(), komunikat.end(), output);
 		*output++ = '\0';
 	};
-	auto czy_to_ten_gracz = [&](PlayerConnection& c)
-	{
-		return c.ip == ip && c.port == port;
-	};
 
+	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
 
 	if(komunikat == RodzajKomunikatu::przylacz_sie)
 	{
@@ -136,11 +180,11 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
 	{
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
-		// TODO
+		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::gra_w_trakcie);
 	}
 	else if(komunikat == RodzajKomunikatu::keep_alive)
 	{
-		auto it = std::find_if(conns.begin(), conns.end(), czy_to_ten_gracz);
+		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
 		if(it != conns.end())
 			it->timeout = max_timeout_time;
 		else
@@ -148,11 +192,39 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	}
 	else if(komunikat == RodzajKomunikatu::zakoncz)
 	{
-		// TODO
+		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
+		if(it != conns.end())
+		{
+			// TODO: usprawnij może jakoś wychodzenie
+			it->player->hurt();
+		}
+		else
+			gracz_mysli_ze_jest_polaczony();
 	}
 	else if(komunikat == RodzajKomunikatu::akcja_gracza)
 	{
-		// TODO
+		int8_t klawisze;
+		std::tie(klawisze, begin) = deserialize_from<decltype(klawisze)>(begin, end);
+		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
+		if(it != conns.end())
+		{
+			bool czy_klasc_bombe = false;
+			// TODO
+			if(!in_range(klawisze, -4, 4))
+			{
+				klawisze -= 16;
+				if(in_range(klawisze, -4, 4))
+					czy_klasc_bombe = true;
+			}
+			if(in_range(klawisze, -4, 4))
+			{
+				it->player->set_next_input(klawisze);
+				if(czy_klasc_bombe)
+					it->player->ustaw_bombe();
+			}
+		}
+		else
+			gracz_mysli_ze_jest_polaczony();
 	}
 	else
 	{
@@ -228,13 +300,15 @@ int main()
 	std::vector<char> input_buffer(65536);
 	std::vector<PlayerConnection> connections;
 	bool gra_w_toku = false;
+	long long tick_number = 0;
 	BombermanLevel default_level(13, 13);
-	BombermanGame world(default_level);
+	BombermanGame world(default_level, 5 * seconds_in_a_minute * ticks_in_a_second);
 	world.players.resize(4);
 
 	auto rozpocznij_gre = [&]()
 	{
 		gra_w_toku = true;
+		tick_number = 0;
 		const struct itimerspec timeout = { logical_tick_time, logical_tick_time };
 		timerfd_settime(timer, 0, &timeout, nullptr);
 	};
@@ -242,6 +316,7 @@ int main()
 	auto przerwij_gre = [&]()
 	{
 		gra_w_toku = false;
+		tick_number = 0;
 		const struct itimerspec timeout = { 0 };
 		timerfd_settime(timer, 0, nullptr, nullptr);
 	};
@@ -256,12 +331,12 @@ int main()
 		{
 			std::uint64_t ticks;
 			read(timer, &ticks, sizeof ticks);
+			++tick_number;
 
-			if(gra_w_toku)
-			{
-				std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << "\n" << std::flush;
-				world.refresh();
-			}
+			std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << ", tick numer: " << tick_number << "\r" << std::flush;
+			world.refresh();
+			for(auto& playerconn : connections)
+				--playerconn.timeout;
 		}
 
 		if(FD_ISSET(socket.fd(), &rfds))
@@ -271,7 +346,7 @@ int main()
 			IPv4Address source;
 			int port;
 			end = socket.receive(begin, end, source, port);
-			std::cout << "ODEBRANO:\n";
+			std::cout << "\nODEBRANO:\n";
 			debug_output(std::cout, begin, end);
 			std::cout << "\n";
 			debug_output_as_hex(std::cout, begin, end);

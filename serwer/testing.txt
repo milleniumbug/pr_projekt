@@ -1,0 +1,60 @@
+sudo tcpdump -i lo udp port 50000 -vv -X
+
+# podstawowe komunikaty
+# ---------------------------------------
+
+# za krótka wiadomość
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '42'
+# błędna wersja
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data 'FFFFFFFF01'
+# dobra wersja, połączenie
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000101'
+# dobra wersja, serwer tego nie obsługuje
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010234343434'
+# dobra wersja, prześlij stan gry
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000103'
+# dobra wersja, serwer tego nie obsługuje
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010432342134235346676345345435435435'
+# dobra wersja, prześlij info
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000105'
+# dobra wersja, serwer tego nie obsługuje
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010632342134235346676345345435435435'
+# dobra wersja, sygnał keep-alive
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000107'
+# dobra wersja, klient zakończ
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000108'
+# dobra wersja, klient input, ale błędny
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000109'
+# dobra wersja, klient input strzałka w lewo
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000109FC'
+# dobra wersja, klient input strzałka w prawo
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010904'
+# dobra wersja, klient input strzałka w górę
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000109FF'
+# dobra wersja, klient input strzałka w dół
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010901'
+# dobra wersja, klient input połóż bombę
+nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010910'
+
+# zestawy testów
+# ------------
+
+# połącz się z tego samego portu kilka razy
+nping -c 4 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000101'
+# połącz się z kilku portów
+for i in {50000,50001,50002,50003}; do nping -c 1 --udp --source-port $i --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000101'; done
+# wyświetl stan gry, połóż bombę, odsuń się i wyświetl stan gry jeszcze raz
+{
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000103';
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010910';
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010904'
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010904'
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010904'
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010904'
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010904'
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000103';
+	sleep 2;
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000103';
+	sleep 2;
+	nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000103';
+}

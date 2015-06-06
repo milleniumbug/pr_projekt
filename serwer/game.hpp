@@ -9,6 +9,8 @@
 #include "variant.hpp"
 
 const int ticks_in_a_second = 120;
+const int seconds_in_a_minute = 60;
+const int milliseconds_in_a_second = 1000;
 
 class Point
 {
@@ -51,8 +53,10 @@ class Player
 private:
 	int direction_;
 	int time_to_stop_;
+	int time_set_bomb_;
 	Point position_;
 	bool is_hurt_;
+	bool czy_klasc_bombe_;
 	static const int next_move = ticks_in_a_second;
 public:
 	void set_next_input(int dir)
@@ -77,11 +81,15 @@ public:
 	Player() :
 		direction_(0),
 		time_to_stop_(0),
+		time_set_bomb_(0),
 		position_(0, 0),
-		is_hurt_(false)
+		is_hurt_(false),
+		czy_klasc_bombe_(false)
 	{
 
 	}
+
+	void ustaw_bombe();
 };
 
 struct DestructibleWall
@@ -110,6 +118,14 @@ struct Bomb
 	void trigger_explosion(BombermanGame& world, Point position);
 
 	typedef std::true_type is_passable;
+
+	Bomb(int remaining_time_until_explosion, int explosion_radius, Player* owner) :
+		remaining_time_until_explosion(remaining_time_until_explosion),
+		explosion_radius(explosion_radius),
+		owner(owner)
+	{
+
+	}
 };
 
 typedef Variant<EmptySpace, DestructibleWall, NondestructibleWall, Bomb> Entity;
@@ -150,6 +166,7 @@ public:
 class BombermanGame
 {
 	unsigned long long ticks;
+	unsigned long long round_time;
 public:
 	bool refresh();
 
@@ -166,7 +183,17 @@ public:
 		return current_level[p];
 	}
 
-	BombermanGame(BombermanLevel level) :
+	int remaining_time()
+	{
+		unsigned long long remaining_time = ticks < round_time ? round_time - ticks : 0;
+		return static_cast<int>(remaining_time * milliseconds_in_a_second / ticks_in_a_second);
+	}
+
+	Point translate(Point source, Vector displacement) const;
+
+	BombermanGame(BombermanLevel level, unsigned long long round_time) :
+		ticks(0),
+		round_time(round_time),
 		current_level(std::move(level))
 	{
 		
@@ -185,8 +212,7 @@ bool in_range(T x, U min, V max)
 template<typename OutputIterator>
 void serialize_to(OutputIterator output, BombermanGame& gamestate)
 {
-	// TODO
-	serialize_to(output, static_cast<uint32_t>(0));
+	serialize_to(output, static_cast<uint32_t>(gamestate.remaining_time()));
 	for(auto& x : gamestate.current_level)
 	{
 		char deserialized_entity;
@@ -204,7 +230,7 @@ void serialize_to(OutputIterator output, BombermanGame& gamestate)
 		assert(in_range(pos.y(), std::numeric_limits<uint16_t>::min(), std::numeric_limits<uint16_t>::max()));
 		serialize_to(output, static_cast<uint16_t>(pos.x()));
 		serialize_to(output, static_cast<uint16_t>(pos.y()));
-		// TODO
+		// TODO: na razie żadnych bonusów nie ma
 		serialize_to(output, static_cast<uint32_t>(0));
 	}
 }
