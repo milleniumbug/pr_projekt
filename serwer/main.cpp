@@ -261,6 +261,7 @@ int main()
 	std::vector<char> input_buffer(65536);
 	std::vector<PlayerConnection> connections;
 	bool gra_w_toku = false;
+	long long tick_number = 0;
 	BombermanLevel default_level(13, 13);
 	BombermanGame world(default_level);
 	world.players.resize(4);
@@ -268,6 +269,7 @@ int main()
 	auto rozpocznij_gre = [&]()
 	{
 		gra_w_toku = true;
+		tick_number = 0;
 		const struct itimerspec timeout = { logical_tick_time, logical_tick_time };
 		timerfd_settime(timer, 0, &timeout, nullptr);
 	};
@@ -275,6 +277,7 @@ int main()
 	auto przerwij_gre = [&]()
 	{
 		gra_w_toku = false;
+		tick_number = 0;
 		const struct itimerspec timeout = { 0 };
 		timerfd_settime(timer, 0, nullptr, nullptr);
 	};
@@ -289,12 +292,10 @@ int main()
 		{
 			std::uint64_t ticks;
 			read(timer, &ticks, sizeof ticks);
+			++tick_number;
 
-			if(gra_w_toku)
-			{
-				std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << "\n" << std::flush;
-				world.refresh();
-			}
+			std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << ", tick numer: " << tick_number << "\r" << std::flush;
+			world.refresh();
 		}
 
 		if(FD_ISSET(socket.fd(), &rfds))
@@ -304,7 +305,7 @@ int main()
 			IPv4Address source;
 			int port;
 			end = socket.receive(begin, end, source, port);
-			std::cout << "ODEBRANO:\n";
+			std::cout << "\nODEBRANO:\n";
 			debug_output(std::cout, begin, end);
 			std::cout << "\n";
 			debug_output_as_hex(std::cout, begin, end);
