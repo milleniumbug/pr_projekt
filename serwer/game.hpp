@@ -9,6 +9,8 @@
 #include "variant.hpp"
 
 const int ticks_in_a_second = 120;
+const int seconds_in_a_minute = 60;
+const int milliseconds_in_a_second = 1000;
 
 class Point
 {
@@ -150,6 +152,7 @@ public:
 class BombermanGame
 {
 	unsigned long long ticks;
+	unsigned long long round_time;
 public:
 	bool refresh();
 
@@ -166,9 +169,17 @@ public:
 		return current_level[p];
 	}
 
+	int remaining_time()
+	{
+		unsigned long long remaining_time = ticks < round_time ? round_time - ticks : 0;
+		return static_cast<int>(remaining_time * milliseconds_in_a_second / ticks_in_a_second);
+	}
+
 	Point translate(Point source, Vector displacement) const;
 
-	BombermanGame(BombermanLevel level) :
+	BombermanGame(BombermanLevel level, unsigned long long round_time) :
+		ticks(0),
+		round_time(round_time),
 		current_level(std::move(level))
 	{
 		
@@ -188,7 +199,7 @@ template<typename OutputIterator>
 void serialize_to(OutputIterator output, BombermanGame& gamestate)
 {
 	// TODO
-	serialize_to(output, static_cast<uint32_t>(0xDEADBEEF));
+	serialize_to(output, static_cast<uint32_t>(gamestate.remaining_time()));
 	for(auto& x : gamestate.current_level)
 	{
 		char deserialized_entity;

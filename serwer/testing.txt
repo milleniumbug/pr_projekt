@@ -1,4 +1,8 @@
 sudo tcpdump -i lo udp port 50000 -vv -X
+
+# podstawowe komunikaty
+# ---------------------------------------
+
 # za krótka wiadomość
 nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '42'
 # błędna wersja
@@ -31,3 +35,11 @@ nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --dat
 nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010901'
 # dobra wersja, klient input połóż bombę
 nping -c 1 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '000000010910'
+
+# zestawy testów
+# ------------
+
+# połącz się z tego samego portu kilka razy
+nping -c 4 --udp --source-port 50000 --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000101'
+# połącz się z kilku portów
+for i in {50000,50001,50002,50003}; do nping -c 1 --udp --source-port $i --dest-port 60000 --dest-ip 127.0.0.1 --data '0000000101'; done

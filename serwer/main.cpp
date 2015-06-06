@@ -290,7 +290,7 @@ int main()
 	bool gra_w_toku = false;
 	long long tick_number = 0;
 	BombermanLevel default_level(13, 13);
-	BombermanGame world(default_level);
+	BombermanGame world(default_level, 5 * seconds_in_a_minute * ticks_in_a_second);
 	world.players.resize(4);
 
 	auto rozpocznij_gre = [&]()
