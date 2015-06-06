@@ -198,7 +198,6 @@ bool in_range(T x, U min, V max)
 template<typename OutputIterator>
 void serialize_to(OutputIterator output, BombermanGame& gamestate)
 {
-	// TODO
 	serialize_to(output, static_cast<uint32_t>(gamestate.remaining_time()));
 	for(auto& x : gamestate.current_level)
 	{
@@ -217,8 +216,8 @@ void serialize_to(OutputIterator output, BombermanGame& gamestate)
 		assert(in_range(pos.y(), std::numeric_limits<uint16_t>::min(), std::numeric_limits<uint16_t>::max()));
 		serialize_to(output, static_cast<uint16_t>(pos.x()));
 		serialize_to(output, static_cast<uint16_t>(pos.y()));
-		// TODO
-		serialize_to(output, static_cast<uint32_t>(0xBABECAFE));
+		// TODO: na razie żadnych bonusów nie ma
+		serialize_to(output, static_cast<uint32_t>(0));
 	}
 }
 
