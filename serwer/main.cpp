@@ -208,8 +208,20 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
 		if(it != conns.end())
 		{
+			bool czy_klasc_bombe = false;
 			// TODO
-			//it->player->set_next_input(?)
+			if(!in_range(klawisze, -4, 4))
+			{
+				klawisze -= 16;
+				if(in_range(klawisze, -4, 4))
+					czy_klasc_bombe = true;
+			}
+			if(in_range(klawisze, -4, 4))
+			{
+				it->player->set_next_input(klawisze);
+				if(czy_klasc_bombe)
+					it->player->ustaw_bombe();
+			}
 		}
 		else
 			gracz_mysli_ze_jest_polaczony();

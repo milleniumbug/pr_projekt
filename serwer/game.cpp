@@ -48,6 +48,7 @@ Point BombermanGame::translate(Point source, Vector displacement) const
 		new_pos = Point(width()-1, new_pos.y());
 	if(new_pos.y() >= height())
 		new_pos = Point(new_pos.x(), height()-1);
+	return new_pos;
 }
 
 Point translate(Point source, Vector displacement)
@@ -115,6 +116,9 @@ void Player::refresh(BombermanGame& world)
 	if(direction_ != 0)
 		--time_to_stop_;
 
+	if(time_set_bomb_ > 0)
+		--time_set_bomb_;
+
 	if(direction_ != 0 && time_to_stop_ <= 0)
 	{
 		Point next_pos = world.translate(position_, direction_from_int(direction_));
@@ -125,10 +129,24 @@ void Player::refresh(BombermanGame& world)
 		time_to_stop_ = next_move;
 	}
 
-	// TODO: kładź bombę
+	if(czy_klasc_bombe_)
+	{
+		dispatch(functions(
+		[&](EmptySpace& sp)
+		{
+			world[position_] = Bomb(ticks_in_a_second * 5, 2, this);
+			czy_klasc_bombe_ = false;
+		},
+		[](Default){}), world[position_]);
+	}
 }
 
 void Player::hurt()
 {
 	is_hurt_ = true;
+}
+
+void Player::ustaw_bombe()
+{
+	czy_klasc_bombe_ = true;
 }

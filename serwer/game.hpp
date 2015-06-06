@@ -53,8 +53,10 @@ class Player
 private:
 	int direction_;
 	int time_to_stop_;
+	int time_set_bomb_;
 	Point position_;
 	bool is_hurt_;
+	bool czy_klasc_bombe_;
 	static const int next_move = ticks_in_a_second;
 public:
 	void set_next_input(int dir)
@@ -79,11 +81,15 @@ public:
 	Player() :
 		direction_(0),
 		time_to_stop_(0),
+		time_set_bomb_(0),
 		position_(0, 0),
-		is_hurt_(false)
+		is_hurt_(false),
+		czy_klasc_bombe_(false)
 	{
 
 	}
+
+	void ustaw_bombe();
 };
 
 struct DestructibleWall
@@ -112,6 +118,14 @@ struct Bomb
 	void trigger_explosion(BombermanGame& world, Point position);
 
 	typedef std::true_type is_passable;
+
+	Bomb(int remaining_time_until_explosion, int explosion_radius, Player* owner) :
+		remaining_time_until_explosion(remaining_time_until_explosion),
+		explosion_radius(explosion_radius),
+		owner(owner)
+	{
+
+	}
 };
 
 typedef Variant<EmptySpace, DestructibleWall, NondestructibleWall, Bomb> Entity;
