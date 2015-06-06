@@ -28,6 +28,12 @@ enum class RodzajKomunikatu : unsigned char
 	serwer_pelny = 0x74
 };
 
+enum class StanGry : unsigned char
+{
+	oczekiwanie_na_polaczenia = 0x01,
+	gra_w_trakcie = 0x02
+};
+
 template<typename RandomAccessIterator, typename Function>
 std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, Function obsluzenie_pozostalych_przypadkow)
 {
@@ -75,6 +81,16 @@ struct PlayerConnection
 
 const int max_timeout_time = ticks_in_a_second*10;
 
+template<typename OutputIterator, typename RandomAccessIterator, typename Connections>
+void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, Connections& conns, BombermanGame& game, StanGry stan_gry)
+{
+	serialize_to(output, static_cast<uint8_t>(conns.size()));
+	serialize_to(output, static_cast<uint8_t>(game.players.size()));
+	serialize_to(output, stan_gry);
+	serialize_to(output, static_cast<uint16_t>(game.current_level.width()));
+	serialize_to(output, static_cast<uint16_t>(game.current_level.height()));
+}
+
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections, typename GameStarter>
 void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, RodzajKomunikatu komunikat, Connections& conns, BombermanGame& game, GameStarter rozpocznij_gre)
 {
@@ -90,6 +106,8 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 			conn.timeout = ticks_in_a_second*10;
 			conns.push_back(conn);
 			serialize_to(output, RodzajKomunikatu::zaakceptowanie);
+			odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
+
 			if(conns.size() == game.players.size())
 				rozpocznij_gre();
 		}
@@ -102,8 +120,7 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
 	{
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
-		// TODO
-		serialize_to(output, static_cast<uint8_t>(conns.size()));
+		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
 	}
 }
 
@@ -136,7 +153,7 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
 	{
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
-		// TODO
+		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::gra_w_trakcie);
 	}
 	else if(komunikat == RodzajKomunikatu::keep_alive)
 	{
@@ -148,11 +165,27 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	}
 	else if(komunikat == RodzajKomunikatu::zakoncz)
 	{
-		// TODO
+		auto it = std::find_if(conns.begin(), conns.end(), czy_to_ten_gracz);
+		if(it != conns.end())
+		{
+			// TODO: usprawnij może jakoś wychodzenie
+			it->player->hurt();
+		}
+		else
+			gracz_mysli_ze_jest_polaczony();
 	}
 	else if(komunikat == RodzajKomunikatu::akcja_gracza)
 	{
-		// TODO
+		int8_t klawisze;
+		std::tie(klawisze, begin) = deserialize_from<decltype(klawisze)>(begin, end);
+		auto it = std::find_if(conns.begin(), conns.end(), czy_to_ten_gracz);
+		if(it != conns.end())
+		{
+			// TODO
+			//it->player->set_next_input(?)
+		}
+		else
+			gracz_mysli_ze_jest_polaczony();
 	}
 	else
 	{
