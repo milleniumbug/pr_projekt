@@ -1,21 +1,18 @@
-#include <cstring>
-#include <cerrno>
-#include <cassert>
-#include <utility>
+#include "precomp.hpp"
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <unistd.h>
-
 #include "netutils.hpp"
+
+using namespace std::string_literals;
 
 UDPSocket::UDPSocket(int port)
 {
 	fd_ = FileDescriptor(socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP));
 	if(!fd_.valid())
 	{
-		// TODO: Add proper exceptions
-		throw "FUCK";
+		throw SocketError("Failure to create socket");
 	}
 	std::memset(&sa_, 0, sizeof sa_);
 	sa_.sin_family = AF_INET;
@@ -23,8 +20,7 @@ UDPSocket::UDPSocket(int port)
 	sa_.sin_port = htons(port);
 	if(bind(fd_,(struct sockaddr*)&sa_, sizeof(sa_)) == -1)
 	{
-		// TODO: Add proper exceptions
-		throw "FUCK";
+		throw SocketError("Failure to create socket"s + strerror(errno));
 	}
 }
 
@@ -40,8 +36,7 @@ const char* UDPSocket::send(const char* data_begin, const char* data_end, IPv4Ad
 	ssize_t ret = sendto(fd_.fd(), data_begin, distance, 0, (struct sockaddr*)&sa, tolen);
 	if(ret == -1)
 	{
-		// TODO: Add proper exceptions
-		throw "FUCK";
+		throw SocketError("Send fail: "s + strerror(errno));
 	}
 	return data_begin + ret;
 }
@@ -54,8 +49,7 @@ char* UDPSocket::receive(char* data_begin, char* data_end, IPv4Address& source, 
 	ssize_t ret = recvfrom(fd_.fd(), data_begin, distance, 0, (struct sockaddr*)&sa, &fromlen);
 	if(ret == -1)
 	{
-		// TODO: Add proper exceptions
-		throw "FUCK";
+		throw SocketError("Receive fail: "s + strerror(errno));
 	}
 	auto a = ntohl(sa.sin_addr.s_addr);
 	IPv4Address address((a >> 24)&0xFF, (a >> 16)&0xFF, (a >> 8)&0xFF, (a >> 0)&0xFF);

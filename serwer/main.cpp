@@ -6,8 +6,8 @@
 static_assert(CHAR_BIT == 8, "char musi mieć 8 bitów");
 const std::uint32_t wersja_serwera = 1;
 
-//const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
-const struct timespec logical_tick_time = { 5, 0 }; // do testów
+const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
+//const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / 2) }; // do testów
 
 #define OVERLOAD_SET(name) ([&](auto&&... args) -> decltype(auto) { return name(std::forward<decltype(args)>(args)...); })
 
