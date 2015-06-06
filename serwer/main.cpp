@@ -71,15 +71,30 @@ std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessI
 	}
 }
 
+const int max_timeout_time = ticks_in_a_second*10;
+
 struct PlayerConnection
 {
 	IPv4Address ip;
 	int port;
 	Player* player;
 	int timeout;
+
+	PlayerConnection(IPv4Address ip, int port, Player* player) :
+		ip(ip),
+		port(port),
+		player(player),
+		timeout(max_timeout_time)
+	{
+
+	}
+
 };
 
-const int max_timeout_time = ticks_in_a_second*10;
+bool czy_to_ten_gracz(const PlayerConnection& c, IPv4Address ip, int port)
+{
+	return c.ip == ip && c.port == port;
+}
 
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections>
 void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, Connections& conns, BombermanGame& game, StanGry stan_gry)
@@ -94,20 +109,28 @@ void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, R
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections, typename GameStarter>
 void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, RodzajKomunikatu komunikat, Connections& conns, BombermanGame& game, GameStarter rozpocznij_gre)
 {
+	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
+	
 	if(komunikat == RodzajKomunikatu::przylacz_sie)
 	{
 		if(conns.size() < game.players.size())
 		{
 			auto pos = conns.size();
-			PlayerConnection conn;
-			conn.ip = ip;
-			conn.port = port;
-			conn.player = &game.players[pos];
-			conn.timeout = ticks_in_a_second*10;
-			conns.push_back(conn);
-			serialize_to(output, RodzajKomunikatu::zaakceptowanie);
-			odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
-
+			
+			if(std::find_if(conns.begin(), conns.end(), dobry_gracz) == conns.end())
+			{
+				PlayerConnection conn(ip, port, &game.players[pos]);
+				conns.push_back(conn);
+				serialize_to(output, RodzajKomunikatu::zaakceptowanie);
+				odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
+			}
+			else
+			{
+				serialize_to(output, RodzajKomunikatu::nieznany_komunikat);
+				std::string komunikat = "Już jesteś połączony";
+				std::copy(komunikat.begin(), komunikat.end(), output);
+				*output++ = '\0';
+			}
 			if(conns.size() == game.players.size())
 				rozpocznij_gre();
 		}
@@ -141,11 +164,8 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 		std::copy(komunikat.begin(), komunikat.end(), output);
 		*output++ = '\0';
 	};
-	auto czy_to_ten_gracz = [&](PlayerConnection& c)
-	{
-		return c.ip == ip && c.port == port;
-	};
 
+	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
 
 	if(komunikat == RodzajKomunikatu::przylacz_sie)
 	{
@@ -164,7 +184,7 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	}
 	else if(komunikat == RodzajKomunikatu::keep_alive)
 	{
-		auto it = std::find_if(conns.begin(), conns.end(), czy_to_ten_gracz);
+		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
 		if(it != conns.end())
 			it->timeout = max_timeout_time;
 		else
@@ -172,7 +192,7 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	}
 	else if(komunikat == RodzajKomunikatu::zakoncz)
 	{
-		auto it = std::find_if(conns.begin(), conns.end(), czy_to_ten_gracz);
+		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
 		if(it != conns.end())
 		{
 			// TODO: usprawnij może jakoś wychodzenie
@@ -185,7 +205,7 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	{
 		int8_t klawisze;
 		std::tie(klawisze, begin) = deserialize_from<decltype(klawisze)>(begin, end);
-		auto it = std::find_if(conns.begin(), conns.end(), czy_to_ten_gracz);
+		auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
 		if(it != conns.end())
 		{
 			// TODO
