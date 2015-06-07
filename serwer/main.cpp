@@ -89,6 +89,12 @@ struct PlayerConnection
 
 	}
 
+	PlayerConnection() :
+		PlayerConnection(IPv4Address(0,0,0,0), 0, nullptr)
+	{
+
+	}
+
 };
 
 bool czy_to_ten_gracz(const PlayerConnection& c, IPv4Address ip, int port)
@@ -96,10 +102,20 @@ bool czy_to_ten_gracz(const PlayerConnection& c, IPv4Address ip, int port)
 	return c.ip == ip && c.port == port;
 }
 
+bool czy_jest_polaczony(const PlayerConnection& c)
+{
+	return c.player	!= nullptr;
+};
+
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections>
 void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, Connections& conns, BombermanGame& game, StanGry stan_gry)
 {
-	serialize_to(output, static_cast<uint8_t>(conns.size()));
+	auto get_connected_players_count = [&]()
+	{
+		return std::count_if(conns.begin(), conns.end(), czy_jest_polaczony);
+	};
+
+	serialize_to(output, static_cast<uint8_t>(get_connected_players_count()));
 	serialize_to(output, static_cast<uint8_t>(game.players.size()));
 	serialize_to(output, stan_gry);
 	serialize_to(output, static_cast<uint16_t>(game.current_level.width()));
@@ -116,17 +132,22 @@ template<typename OutputIterator, typename RandomAccessIterator, typename Connec
 void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, RodzajKomunikatu komunikat, Connections& conns, BombermanGame& game, GameStarter rozpocznij_gre)
 {
 	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
+	auto get_connected_players_count = [&]()
+	{
+		return std::count_if(conns.begin(), conns.end(), czy_jest_polaczony);
+	};
 	
 	if(komunikat == RodzajKomunikatu::przylacz_sie)
 	{
-		if(conns.size() < game.players.size())
+		
+		if(get_connected_players_count() < game.players.size())
 		{
-			auto pos = conns.size();
-			
 			if(std::find_if(conns.begin(), conns.end(), dobry_gracz) == conns.end())
 			{
+				auto gr_it = std::find_if_not(conns.begin(), conns.end(), czy_jest_polaczony);
+				auto pos = std::distance(conns.begin(), gr_it);
 				PlayerConnection conn(ip, port, &game.players[pos]);
-				conns.push_back(conn);
+				*gr_it = conn;
 				serialize_to(output, RodzajKomunikatu::zaakceptowanie);
 				odpowiedz_stan_serwera(output, begin, end, ip, port, conns, game, StanGry::oczekiwanie_na_polaczenia);
 			}
@@ -137,13 +158,21 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 				std::copy(komunikat.begin(), komunikat.end(), output);
 				*output++ = '\0';
 			}
-			if(conns.size() == game.players.size())
+			if(get_connected_players_count() == game.players.size())
 				rozpocznij_gre();
 		}
 		else
 		{
 			serialize_to(output, RodzajKomunikatu::serwer_pelny);
 			return;
+		}
+	}
+	else if(komunikat == RodzajKomunikatu::zakoncz)
+	{
+		auto gr_it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
+		if(gr_it != conns.end())
+		{
+			*gr_it = PlayerConnection();
 		}
 	}
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
@@ -303,13 +332,14 @@ int main()
 	FD_SET(socket.fd(), &do_odczytu);
 	max_fds = std::max(socket.fd(), max_fds);
 
+	const int ile_graczy = 4;
 	std::vector<char> input_buffer(65536);
-	std::vector<PlayerConnection> connections;
+	std::vector<PlayerConnection> connections(ile_graczy);
 	bool gra_w_toku = false;
 	long long tick_number = 0;
 	BombermanLevel default_level(13, 13);
 	BombermanGame world(default_level, 5 * seconds_in_a_minute * ticks_in_a_second);
-	world.players.resize(4);
+	world.players.resize(ile_graczy);
 
 	auto rozpocznij_gre = [&]()
 	{
