@@ -113,6 +113,13 @@ void Player::refresh(BombermanGame& world)
 	if(is_hurt_)
 		return;
 
+	if(direction_ == 0 && next_direction_ != 0)
+	{
+		direction_ = next_direction_;
+		next_direction_ = 0;
+		time_to_stop_ = next_move;
+	}
+
 	if(direction_ != 0)
 		--time_to_stop_;
 
@@ -150,4 +157,9 @@ void Player::hurt()
 void Player::ustaw_bombe()
 {
 	czy_klasc_bombe_ = true;
+}
+
+void Player::set_next_input(int dir)
+{
+	next_direction_ = dir;
 }

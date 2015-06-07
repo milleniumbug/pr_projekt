@@ -51,6 +51,7 @@ class BombermanGame;
 class Player
 {
 private:
+	int next_direction_;
 	int direction_;
 	int time_to_stop_;
 	int time_set_bomb_;
@@ -59,11 +60,7 @@ private:
 	bool czy_klasc_bombe_;
 	static const int next_move = ticks_in_a_second;
 public:
-	void set_next_input(int dir)
-	{
-		direction_ = dir;
-		time_to_stop_ = next_move;
-	}
+	void set_next_input(int dir);
 
 	Point position() const
 	{
@@ -79,6 +76,7 @@ public:
 	void hurt();
 
 	Player(Point position) :
+		next_direction_(0),
 		direction_(0),
 		time_to_stop_(0),
 		time_set_bomb_(0),
