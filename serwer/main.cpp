@@ -97,13 +97,19 @@ bool czy_to_ten_gracz(const PlayerConnection& c, IPv4Address ip, int port)
 }
 
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections>
-void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, Connections& conns, BombermanGame& game, StanGry stan_gry)
+void odpowiedz_stan_serwera(OutputIterator output, RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, Connections& conns, BombermanGame& game, StanGry stan_gry)
 {
 	serialize_to(output, static_cast<uint8_t>(conns.size()));
 	serialize_to(output, static_cast<uint8_t>(game.players.size()));
 	serialize_to(output, stan_gry);
 	serialize_to(output, static_cast<uint16_t>(game.current_level.width()));
 	serialize_to(output, static_cast<uint16_t>(game.current_level.height()));
+	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
+	auto it = std::find_if(conns.begin(), conns.end(), dobry_gracz);
+	if(it != conns.end())
+		serialize_to(output, static_cast<uint8_t>(1+std::distance(conns.begin(), it)));
+	else
+		serialize_to(output, static_cast<uint8_t>(0));
 }
 
 template<typename OutputIterator, typename RandomAccessIterator, typename Connections, typename GameStarter>
@@ -122,7 +128,7 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 				PlayerConnection conn(ip, port, &game.players[pos]);
 				conns.push_back(conn);
 				serialize_to(output, RodzajKomunikatu::zaakceptowanie);
-				odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
+				odpowiedz_stan_serwera(output, begin, end, ip, port, conns, game, StanGry::oczekiwanie_na_polaczenia);
 			}
 			else
 			{
@@ -143,7 +149,7 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
 	{
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
-		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::oczekiwanie_na_polaczenia);
+		odpowiedz_stan_serwera(output, begin, end, ip, port, conns, game, StanGry::oczekiwanie_na_polaczenia);
 	}
 	else
 	{
@@ -180,7 +186,7 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 	else if(komunikat == RodzajKomunikatu::przeslij_info_o_serwerze)
 	{
 		serialize_to(output, RodzajKomunikatu::info_o_serwerze);
-		odpowiedz_stan_serwera(output, begin, end, conns, game, StanGry::gra_w_trakcie);
+		odpowiedz_stan_serwera(output, begin, end, ip, port, conns, game, StanGry::gra_w_trakcie);
 	}
 	else if(komunikat == RodzajKomunikatu::keep_alive)
 	{

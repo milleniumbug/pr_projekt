@@ -90,6 +90,9 @@ Stan gracza określa:
 Identyfikatory pól na planszy:
 
 Pusta przestrzeń - 0
+
 Zniszczalny mur - 1
+
 Niezniszczalny mur - 2
+
 Bomba - 3 (wydaję mi się że możemy to rozszerzyć i dać np. "4 dla gracza 1, 5 dla gracza 2, 6 dla gracza 3 i 7 dla gracza 4", ale to tego nie robię na ten moment - to do uzgodnienia)
