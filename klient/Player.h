@@ -10,6 +10,7 @@ class Player
 	int X;
 	int Y;
 	int Size;
+	int Bonus;
 	TexArray* Textures;
 
 	Player(int id, int dir, int x, int y, int size, string bmpPath);

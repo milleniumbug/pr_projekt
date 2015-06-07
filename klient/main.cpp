@@ -8,6 +8,7 @@
 #include "Player.h"
 #include "Renderer.h"
 #include "Connection.h"
+#include <ctime>
 
 
 using namespace std;
@@ -19,11 +20,18 @@ bool doExit = false;
 SDL_Color red;
 SDL_Color white = {255, 255, 255, 255};
 SDL_Color colorKey = {255, 255, 0, 255};
+SDL_Window* win = NULL;
 int ticks = 0;
 int framesCount = 0;
 int tempFramesCount = 0;
 int mapSize = 13;
 int versionNumber = 1;
+int tickrate = 30;
+bool fpsLimiter = true;
+int fpsLimit = 120;
+int fpsLimitMiliseconds = 1000 / fpsLimit;
+
+HANDLE moveThreadHandle = NULL;
 
 void initConnection();
 
@@ -133,7 +141,8 @@ void drawFPS()
 		tempFramesCount = 0;
 		ticks = GetTickCount();
 	}
-	SetWindowTextA(GetActiveWindow(), ("FPS: " + to_string(framesCount)).c_str());
+	
+	SDL_SetWindowTitle(win, ("FPS: " + to_string(framesCount)).c_str());
 	//renderText("FPS: " + to_string(framesCount), red, 0, 0);
 }
 
@@ -313,7 +322,7 @@ void HandleMenuKeyboard(SDL_Event e)
 	}
 }
 
-
+bool sendGameStateRequest = false;
 void HandleKeyboard(SDL_Event e)
 {
 	if (e.type == SDL_KEYDOWN)
@@ -345,6 +354,8 @@ void HandleKeyboard(SDL_Event e)
 			multiplyFactor = 1.0f;
 		if (e.key.keysym.sym == SDLK_TAB)
 			nextPlayer();
+		if (e.key.keysym.sym == SDLK_SPACE)
+			sendGameStateRequest = true;
 	}
 }
 
@@ -411,8 +422,29 @@ void moveThread()
 			yDiff -= 2 * multiplyFactor;
 		if (downPressed)
 			yDiff += 2 * multiplyFactor;
+		
+		int calcSum = 0;
+		if (leftPressed)
+			calcSum -= 4;
+		if (rightPressed)
+			calcSum += 4;
+		if (upPressed)
+			calcSum -= 1;
+		if (downPressed)
+			calcSum += 1;
 
-		if (yDiff != 0 || xDiff != 0)
+		if (calcSum != 0)
+		{
+			Packet p;
+			p.AllocData(6);
+			p.AddInt(versionNumber);
+			p.AddByte(PacketType::ClientPlayerAction);
+			p.AddByte(calcSum);
+			connection.Send(p);
+			p.DeleteData();
+		}
+
+		/*if (yDiff != 0 || xDiff != 0)
 		{
 			if (collides())
 			{
@@ -440,24 +472,84 @@ void moveThread()
 		if (controlledPlayer->Y > windowH - playerSize)
 			controlledPlayer->Y = windowH - playerSize;
 		if (controlledPlayer->X > windowW - playerSize)
-			controlledPlayer->X = windowW - playerSize;
+			controlledPlayer->X = windowW - playerSize;*/
 
-		Sleep(4);
+		Sleep(33);
 	}
 }
-
+int timeLeft = 0;
+bool connectionProblem = false;
 void recvThread()
 {
 	while (true)
 	{
 		Packet pucket = connection.Recv();
-		if (pucket.RecvResult >= 0)
-			MessageBoxA(0, "Odbiooor kurwa", "Lal", MB_OK);
+		if (pucket.RecvResult >= 0 && pucket.RecvResult != 0xFFFFFFFF)
+		{
+			connectionProblem = false;
+			int version = pucket.ReadInt();
+			int packetType = pucket.ReadByte();
+			if (packetType == PacketType::ServerSendGameState)
+			{
+				timeLeft = pucket.ReadInt();
+				for (int i = 0; i < mapSize; i++)
+				{
+					for (int j = 0; j < mapSize; j++)
+					{
+						map[i][j] = Block(pucket.ReadByte(), tileSize, i, j);
+					}
+				}
+				short p1X = pucket.ReadShort();
+				short p1Y = pucket.ReadShort();
+				int p1Bonus = pucket.ReadInt();
+				short p2X = pucket.ReadShort();
+				short p2Y = pucket.ReadShort();
+				int p2Bonus = pucket.ReadInt();
+				short p3X = pucket.ReadShort();
+				short p3Y = pucket.ReadShort();
+				int p3Bonus = pucket.ReadInt();
+				short p4X = pucket.ReadShort();
+				short p4Y = pucket.ReadShort();
+				int p4Bonus = pucket.ReadInt();
+				p1->X = p1X;
+				p1->Y = p1Y;
+				p1->Bonus = p1Bonus;
+				p2->X = p2X;
+				p2->Y = p2Y;
+				p2->Bonus = p2Bonus;
+				p3->X = p3X;
+				p3->Y = p3Y;
+				p3->Bonus = p3Bonus;
+				p4->X = p4X;
+				p4->Y = p4Y;
+				p4->Bonus = p4Bonus;
+			}
+			else
+			{
+
+			}
+		}
+		else if (pucket.RecvResult == 0xFFFFFFFF)
+		{
+			connectionProblem = true;
+		}
 	}
 }
 
 void sendThread()
 {
+	Packet gameStatePacket;
+	gameStatePacket.AllocData(5);
+	gameStatePacket.AddInt(versionNumber);
+	gameStatePacket.AddByte(PacketType::ClientRequestGameState);
+
+	while (true)
+	{
+		connection.Send(gameStatePacket);
+		Sleep(1000 / tickrate);
+	}
+
+	gameStatePacket.DeleteData();
 }
 
 string lobbyMessage = "";
@@ -536,6 +628,9 @@ void initConnection()
 	}
 	sendPacket.DeleteData();
 	lobby = false;
+	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)recvThread, NULL, NULL, NULL);
+	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)sendThread, NULL, NULL, NULL);
+	moveThreadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)moveThread, NULL, NULL, NULL);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -547,7 +642,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (mainPath == "error")
 		return 1;
 	
-	SDL_Window* win = SDL_CreateWindow(("Bomberman v" + to_string(versionNumber)).c_str(), 100, 100, windowW, windowH, SDL_WINDOW_SHOWN);
+	win = SDL_CreateWindow(("Bomberman v" + to_string(versionNumber)).c_str(), 100, 100, windowW, windowH, SDL_WINDOW_SHOWN);
 	if (win == NULL)
 	{
 		SDL_Quit();
@@ -591,8 +686,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	p4 = new Player(3, 3, 12, 12, 48, mainPath + "gfx\\player4.bmp");
 	controlledPlayer = p1;
 
-	HANDLE moveThreadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)moveThread, NULL, NULL, NULL);
-
+	int currentFrameTime;
 	SDL_Event e;
 	while (!doExit)
 	{
@@ -607,6 +701,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					HandleKeyboard(e);
 		}
 		//Render the scene
+		currentFrameTime = SDL_GetTicks();
 		SDL_RenderClear(ren);
 		SDL_Rect fillRect = {windowH, windowW, 0, 0}; 
 		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255); 
@@ -635,8 +730,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		drawFPS();
 		Renderer::RenderText("X: " + to_string(controlledPlayer->X) + " Y: " + to_string(controlledPlayer->Y), font, white, 10, 70);
 		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);
+		if (connectionProblem)
+			Renderer::RenderText("Connection problem", font, red, 0, 0);
+		Renderer::RenderText("Time left: " + to_string(timeLeft), font, white, 0, 50);
 		SDL_RenderPresent(ren);
-		//Sleep(33);
+		int currentSpeed = SDL_GetTicks() - currentFrameTime;
+		if (fpsLimitMiliseconds > currentSpeed)
+			SDL_Delay(fpsLimitMiliseconds - currentSpeed);
 	}
 
 	TerminateThread(moveThreadHandle, 0);

@@ -8,6 +8,7 @@ Player::Player(int id, int dir, int mapX, int mapY, int size, string bmpPath)
 	X = mapX * TILE_SIZE;
 	Y = mapY * TILE_SIZE;
 	Size = size;
+	Bonus = 0;
 	Textures = new TexArray(bmpPath);
 }
 
