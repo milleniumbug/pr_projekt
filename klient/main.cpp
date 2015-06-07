@@ -47,6 +47,7 @@ Player* p2 = NULL;
 Player* p3 = NULL;
 Player* p4 = NULL;
 Player* controlledPlayer = NULL;
+int playerId = 0;
 
 int tileSize = 64;
 int windowW = mapSize * tileSize, windowH = mapSize * tileSize;
@@ -511,17 +512,17 @@ void recvThread()
 				short p4X = pucket.ReadShort();
 				short p4Y = pucket.ReadShort();
 				int p4Bonus = pucket.ReadInt();
-				p1->X = p1X;
-				p1->Y = p1Y;
+				p1->X = p1X * 64 + 8;
+				p1->Y = p1Y * 64 + 8;
 				p1->Bonus = p1Bonus;
-				p2->X = p2X;
-				p2->Y = p2Y;
+				p2->X = p2X * 64 + 8;
+				p2->Y = p2Y * 64 + 8;
 				p2->Bonus = p2Bonus;
-				p3->X = p3X;
-				p3->Y = p3Y;
+				p3->X = p3X * 64 + 8;
+				p3->Y = p3Y * 64 + 8;
 				p3->Bonus = p3Bonus;
-				p4->X = p4X;
-				p4->Y = p4Y;
+				p4->X = p4X * 64 + 8;
+				p4->Y = p4Y * 64 + 8;
 				p4->Bonus = p4Bonus;
 			}
 			else
@@ -608,6 +609,16 @@ void initConnection()
 	int playersNeeded = p.ReadByte();
 	gameState = p.ReadByte();
 	lobbyGameState = to_string(playersJoined) + "/" + to_string(playersNeeded);
+	p.ReadInt();
+	playerId = p.ReadByte();
+	if (playerId == 1)
+		controlledPlayer = p1;
+	else if (playerId == 2)
+		controlledPlayer = p2;
+	else if (playerId == 3)
+		controlledPlayer = p3;
+	else if (playerId == 4)
+		controlledPlayer = p4;
 	p.DeleteData();
 	Packet sendPacket;
 	sendPacket.AllocData(5);
@@ -733,6 +744,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (connectionProblem)
 			Renderer::RenderText("Connection problem", font, red, 0, 0);
 		Renderer::RenderText("Time left: " + to_string(timeLeft), font, white, 0, 50);
+		Renderer::RenderText("Player ID: " + to_string(playerId), font, white, 0, 150);
 		SDL_RenderPresent(ren);
 		int currentSpeed = SDL_GetTicks() - currentFrameTime;
 		if (fpsLimitMiliseconds > currentSpeed)
