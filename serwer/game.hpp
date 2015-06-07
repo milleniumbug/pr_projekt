@@ -72,6 +72,16 @@ public:
 		return is_hurt_;
 	}
 
+	int direction() const
+	{
+		return direction_;
+	}
+
+	int move_progress_percent() const
+	{
+		return (next_move - time_to_stop_)*100/next_move;
+	}
+
 	void refresh(BombermanGame& world);
 	void hurt();
 
@@ -231,8 +241,13 @@ void serialize_to(OutputIterator output, BombermanGame& gamestate)
 		assert(in_range(pos.y(), std::numeric_limits<uint16_t>::min(), std::numeric_limits<uint16_t>::max()));
 		serialize_to(output, static_cast<uint16_t>(pos.x()));
 		serialize_to(output, static_cast<uint16_t>(pos.y()));
-		// TODO: na razie żadnych bonusów nie ma
-		serialize_to(output, static_cast<uint32_t>(0));
+		// przerobione pola
+		serialize_to(output, static_cast<uint8_t>(player.move_progress_percent()));
+		assert(in_range(player.direction(), -4, 4));
+		serialize_to(output, static_cast<uint8_t>(player.direction()));
+		// TODO: bomby
+		serialize_to(output, static_cast<uint8_t>(0));
+		serialize_to(output, static_cast<uint8_t>(0));
 	}
 }
 
