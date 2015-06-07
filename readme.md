@@ -49,7 +49,7 @@ Te same informacje co w komunikacie 06.
 
 4-bajtowa liczba big-endian bez znaku określająca pozostały czas do końca gry w milisekundach.
 
-w*h bajtów (w to jest szerokość planszy, h to jest wysokość planszy, określone na początku, przesłane zawczasu przez serwer w komunikacie 02) określające kolejne pola na planszy
+w*h bajtów (w to jest szerokość planszy, h to jest wysokość planszy, określone na początku, przesłane zawczasu przez serwer w komunikacie 02) określające kolejne pola na planszy (identyfikatory określające rodzaj pola są opisane poniżej)
 
 4 stany dla każdego gracza.
 
@@ -69,11 +69,13 @@ Stan gracza określa:
 
 1-bajtowa liczba bez znaku określająca oczekiwaną ilość graczy
 
-1 bajt określający stan gry: OCZEKIWANIE NA GRACZY, GRA W TRAKCIE
+1-bajtowa liczba bez znaku określająca stan gry: OCZEKIWANIE NA GRACZY (1), GRA W TRAKCIE (2)
 
 2-bajtowa liczba big-endian bez znaku określająca szerokość planszy w
 
 2-bajtowa liczba big-endian bez znaku określająca wysokość planszy h
+
+1-bajtowa liczba bez znaku określająca numer gracza który jest sterowany przez dane połączenie, 0 jeżeli gracz nie jest podłączony do serwera. 
 
 09:
 
@@ -84,3 +86,13 @@ Stan gracza określa:
 71:
 
 "przyjazny" komunikat o błędzie, zakończony bajtem zerowym.
+
+Identyfikatory pól na planszy:
+
+Pusta przestrzeń - 0
+
+Zniszczalny mur - 1
+
+Niezniszczalny mur - 2
+
+Bomba - 3 (wydaję mi się że możemy to rozszerzyć i dać np. "4 dla gracza 1, 5 dla gracza 2, 6 dla gracza 3 i 7 dla gracza 4", ale to tego nie robię na ten moment - to do uzgodnienia)
