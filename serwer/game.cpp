@@ -127,6 +127,7 @@ void Player::refresh(BombermanGame& world)
 		if(is_passable)
 			position_ = next_pos;
 		time_to_stop_ = next_move;
+		direction_ = 0;
 	}
 
 	if(czy_klasc_bombe_)
