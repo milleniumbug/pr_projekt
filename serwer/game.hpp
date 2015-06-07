@@ -78,11 +78,11 @@ public:
 	void refresh(BombermanGame& world);
 	void hurt();
 
-	Player() :
+	Player(Point position) :
 		direction_(0),
 		time_to_stop_(0),
 		time_set_bomb_(0),
-		position_(0, 0),
+		position_(position),
 		is_hurt_(false),
 		czy_klasc_bombe_(false)
 	{
@@ -201,6 +201,9 @@ public:
 
 	BombermanLevel current_level;
 	std::vector<Player> players;
+
+	static const int min_graczy = 2;
+	static const int max_graczy = 4;
 };
 
 template<typename T, typename U, typename V>
