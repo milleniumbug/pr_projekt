@@ -96,6 +96,8 @@ void Bomb::trigger_explosion(BombermanGame& world, Point position)
 
 Vector direction_from_int(int dir)
 {
+	if(dir == 0)
+		return Vector(0, 0);
 	if(dir == -1)
 		return up;
 	if(dir == 1)
@@ -110,6 +112,14 @@ Vector direction_from_int(int dir)
 
 void Player::refresh(BombermanGame& world)
 {
+	auto can_you_move_there = [&]()
+	{
+		Point next_pos = world.translate(position_, direction_from_int(direction_));
+		bool is_passable;
+		dispatch([&](auto x){ is_passable = decltype(x)::is_passable::value; }, world[next_pos]);
+		return is_passable;
+	};
+
 	if(is_hurt_)
 		return;
 
@@ -118,6 +128,11 @@ void Player::refresh(BombermanGame& world)
 		direction_ = next_direction_;
 		next_direction_ = 0;
 		time_to_stop_ = next_move;
+		if(!(world.translate(position_, direction_from_int(direction_)) != position_ && can_you_move_there()))
+		{
+			direction_ = 0;
+			time_to_stop_ = 0;
+		}
 	}
 
 	if(direction_ != 0)
@@ -128,12 +143,10 @@ void Player::refresh(BombermanGame& world)
 
 	if(direction_ != 0 && time_to_stop_ <= 0)
 	{
-		Point next_pos = world.translate(position_, direction_from_int(direction_));
-		bool is_passable;
-		dispatch([&](auto x){ is_passable = decltype(x)::is_passable::value; }, world[next_pos]);
+		bool is_passable = can_you_move_there();
 		if(is_passable)
-			position_ = next_pos;
-		time_to_stop_ = next_move;
+			position_ = world.translate(position_, direction_from_int(direction_));
+		time_to_stop_ = 0;
 		direction_ = 0;
 	}
 

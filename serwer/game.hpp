@@ -79,6 +79,8 @@ public:
 
 	int move_progress_percent() const
 	{
+		if(time_to_stop_ == 0)
+			return 0;
 		return (next_move - time_to_stop_)*100/next_move;
 	}
 
