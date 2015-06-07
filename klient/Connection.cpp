@@ -13,6 +13,9 @@ Connection::Connection()
 		State = WSAGetLastError();
 		return;
 	}
+
+	SetRecvTimeout(5000);
+	
 	State = 0;
 }
 
@@ -22,7 +25,12 @@ Connection::~Connection()
 	WSACleanup();
 }
 
-int Connection::Connect(string ip, int port)
+void Connection::SetRecvTimeout(int miliseconds) 
+{ //TIMEOUT na RECVFROM, wg MSDN to dzia³a od Win 8.1, ale na moim 7 te¿ hula :D
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char*)&miliseconds, 4);
+}
+
+int Connection::SetIP(string ip, int port)
 {
 	memset((char *)&si_other, 0, sizeof(si_other));
 	si_other.sin_family = AF_INET;

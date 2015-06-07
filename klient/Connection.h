@@ -11,7 +11,8 @@ class Connection
 	Connection();
 	~Connection();
 
-	int Connect(string ip, int port);
+	void SetRecvTimeout(int miliseconds);
+	int SetIP(string ip, int port);
 	void Disconnect();
 	int Send(Packet p);
 	Packet Recv();

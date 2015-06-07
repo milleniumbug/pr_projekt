@@ -25,10 +25,12 @@ int tempFramesCount = 0;
 int mapSize = 13;
 int versionNumber = 1;
 
+void initConnection();
+
 //magia visuala, mam zalinkowan¹ bibliotekê we w³aœciwoœciach projektu, ale ten jej nie widzi ;D
 //a ta linijka magicznie dzia³a o.o
 #pragma comment(lib, "..\\SDL2_gfx-1.0.1\\lib\\SDL2_gfx.lib")
-#pragma comment(lib,"ws2_32.lib")
+#pragma comment(lib, "ws2_32.lib")
 
 SDL_Texture* texBlock;
 SDL_Texture* arrowRight;
@@ -42,7 +44,7 @@ int tileSize = 64;
 int windowW = mapSize * tileSize, windowH = mapSize * tileSize;
 int playerSize = 48;
 
-enum class PacketType : byte
+enum PacketType : byte
 {
 	ClientJoinGame = 0x01,
 	ServerAccept = 0x02,
@@ -57,6 +59,12 @@ enum class PacketType : byte
 	ServerIncompatibleVersion = 0x72,
 	ServerGameAlreadyStarted = 0x73,
 	ServerIsFull = 0x74
+};
+
+enum GameState : byte
+{
+	Lobby = 0x01,
+	Running = 0x02
 };
 
 class Block
@@ -157,6 +165,8 @@ bool canBeIP(SDL_Keycode k)
 	return false;
 }
 
+bool menu = true;
+bool lobby = false;
 //Menu
 //IP:PORT textfield
 //Info bout server
@@ -169,14 +179,14 @@ Connection connection;
 int selectedEntry = 0;
 string infoString = "";
 string ipPortString = "192.168.56.101:60000";
+string ip = "";
+int port = -1;
 
-void GetServerInfo()
+void GetIPPort()
 {
-	infoString = "";
 	string myIpPortString = ipPortString;
-	string ip = "";
-	int port = -1;
-
+	ip = "";
+	port = -1;
 	char* pch;
 	pch = strtok((char*)myIpPortString.c_str(), ":");
 	int i = 0;
@@ -194,18 +204,28 @@ void GetServerInfo()
 			break;
 		}
 	}
+}
+
+void GetServerInfo()
+{
+	infoString = "";
+	GetIPPort();
+
 	if (port == -1)
 		port = 60000;
 
-	connection.Connect(ip, port);
+	connection.SetIP(ip, port);
 	Packet p;
 	p.AllocData(5);
 	p.AddInt(versionNumber);
 	p.AddByte(5);
-	connection.Send(p);
+
+	int result = connection.Send(p);
+
 	p.DeleteData();
+
 	Packet r = connection.Recv();
-	if (r.RecvResult > 0)
+	if (r.RecvResult > 0 && r.RecvResult != 0xFFFFFFFF)
 	{
 		int serverVersion = r.ReadInt();
 		if (serverVersion != versionNumber)
@@ -215,7 +235,7 @@ void GetServerInfo()
 			return;
 		}
 		byte packetType = r.ReadByte();
-		if (packetType != (byte)PacketType::ServerSendServerInfo)
+		if (packetType != PacketType::ServerSendServerInfo)
 		{
 			r.DeleteData();
 			infoString = "Broken server (?)";
@@ -248,12 +268,12 @@ void GetServerInfo()
 
 void RenderMenu()
 {
-	Renderer::RenderText("Info :" + infoString, font, white, 100, 80);
+	Renderer::RenderText("Info: " + infoString, font, white, 100, 80);
 	Renderer::RenderText("IP:PORT = " + ipPortString, font, white, 100, 100);
 	Renderer::RenderText("Connect", font, white, 100, 120);
 	Renderer::RenderText("Get Info", font, white, 100, 140);
 	Renderer::RenderText("Exit", font, white, 100, 160);
-	Renderer::RenderTexture(arrowRight, 60, 90 + selectedEntry*20, 32, 32);
+	Renderer::RenderTexture(arrowRight, 60, 95 + selectedEntry*20, 32, 32);
 }
 
 void HandleMenuKeyboard(SDL_Event e)
@@ -278,7 +298,6 @@ void HandleMenuKeyboard(SDL_Event e)
 				ipPortString.push_back(':');
 			else if (ipPortString.size() > 0 && e.key.keysym.sym == SDLK_BACKSPACE)
 				ipPortString.pop_back();
-
 		}
 
 		if (e.key.keysym.sym == SDLK_RETURN)
@@ -286,7 +305,7 @@ void HandleMenuKeyboard(SDL_Event e)
 			switch (selectedEntry)
 			{
 				case 0:	break;
-				case 1: /*TODO: Connect*/ break;
+				case 1: lobby = true; CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)initConnection, NULL, NULL, NULL); menu = false; break;
 				case 2: CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)GetServerInfo, NULL, NULL, NULL); break;
 				case 3: doExit = true; break;
 			}
@@ -441,25 +460,82 @@ void sendThread()
 {
 }
 
+string lobbyMessage = "";
+string lobbyGameState = "";
+
+void RenderLobby()
+{
+	int textX = 0, textY = 0;
+	int textLength = 0;
+	int textHeight = 0;
+	TTF_SizeText(font, (lobbyMessage + lobbyGameState).c_str(), &textLength, &textHeight);
+	textX = (windowW / 2) - (textLength / 2);
+	textY = (windowH / 2) - (textHeight / 2);
+	Renderer::RenderText(lobbyMessage + lobbyGameState, font, red, textX, textY);
+}
+
 void initConnection()
 {
-	if (connection.State != 0)
-	{
-		MessageBoxA(0, "Cos sie wyjebao", "Lol", MB_OK);
-		return;
-	}
-	int result = connection.Connect("192.168.56.101", 60000);
-	if (result != 0)
-	{
-		MessageBoxA(0, "Rzadka kupa a nie connection", "Lel", MB_OK);
-		return;
-	}
-	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)recvThread, NULL, NULL, NULL);
+	lobbyMessage = "Connecting...";
+	lobbyGameState = "";
+
+	GetIPPort();
+	int result = connection.SetIP(ip, port);
+
 	Packet p;
 	p.AllocData(5);
-	p.AddInt(1);
-	p.AddByte(5);
+	p.AddInt(versionNumber);
+	p.AddByte(PacketType::ClientJoinGame);
 	int r = connection.Send(p);
+	p.DeleteData();
+	int gameState = GameState::Lobby;
+	p = connection.Recv();
+	int gv = p.ReadInt();
+	byte response = p.ReadByte();
+	if (response != PacketType::ServerAccept)
+	{
+		if (p.RecvResult = 0xFFFFFFFF)
+			lobbyMessage = "CLIENT: Connection failed.";
+		else if (response == PacketType::ServerGameAlreadyStarted)
+			lobbyMessage = "SERVER: Game already started.";
+		else if (response == PacketType::ServerIncompatibleVersion)
+			lobbyMessage = "SERVER: Incompatible version.";
+		else if (response == PacketType::ServerIsFull)
+			lobbyMessage = "SERVER: Server is full.";
+		else if (response == PacketType::ServerUnknownPacket)
+			lobbyMessage = "SERVER: Unknown packet. omG WTF lol";
+		else
+			lobbyMessage = "Server returned unknown packet, lol";
+		Sleep(5000);
+		menu = true;
+		lobby = false;
+		return;
+	}
+	lobbyMessage = "Waiting for players... ";
+	int playersJoined = p.ReadByte();
+	int playersNeeded = p.ReadByte();
+	gameState = p.ReadByte();
+	lobbyGameState = to_string(playersJoined) + "/" + to_string(playersNeeded);
+	p.DeleteData();
+	Packet sendPacket;
+	sendPacket.AllocData(5);
+	sendPacket.AddInt(versionNumber);
+	sendPacket.AddByte(PacketType::ClientRequestServerInfo);
+	while (gameState != GameState::Running)
+	{
+		connection.Send(sendPacket);
+		p = connection.Recv();
+		int gv = p.ReadInt();
+		byte packetType = p.ReadByte();
+		int playersJoined = p.ReadByte();
+		int playersNeeded = p.ReadByte();
+		gameState = p.ReadByte();
+		lobbyGameState = to_string(playersJoined) + "/" + to_string(playersNeeded);
+		p.DeleteData();
+		Sleep(50);
+	}
+	sendPacket.DeleteData();
+	lobby = false;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -471,7 +547,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (mainPath == "error")
 		return 1;
 	
-	SDL_Window* win = SDL_CreateWindow("Hello World!", 100, 100, windowW, windowH, SDL_WINDOW_SHOWN);
+	SDL_Window* win = SDL_CreateWindow(("Bomberman v" + to_string(versionNumber)).c_str(), 100, 100, windowW, windowH, SDL_WINDOW_SHOWN);
 	if (win == NULL)
 	{
 		SDL_Quit();
@@ -491,7 +567,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 1;
 	}
 
-	font = TTF_OpenFont((mainPath + "gfx\\arial.ttf").c_str(), 12);
+	font = TTF_OpenFont((mainPath + "gfx\\DroidSans.ttf").c_str(), 20);
 	if (font == NULL)
 	{
 		SDL_Quit();
@@ -516,7 +592,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	controlledPlayer = p1;
 
 	HANDLE moveThreadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)moveThread, NULL, NULL, NULL);
-	//CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)initConnection, NULL, NULL, NULL);
 
 	SDL_Event e;
 	while (!doExit)
@@ -526,15 +601,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if (e.type == SDL_QUIT)
 				doExit = true;
 			if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP)
-				HandleMenuKeyboard(e);
+				if (menu)
+					HandleMenuKeyboard(e);
+				else
+					HandleKeyboard(e);
 		}
 		//Render the scene
 		SDL_RenderClear(ren);
 		SDL_Rect fillRect = {windowH, windowW, 0, 0}; 
 		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255); 
 		SDL_RenderFillRect(ren, &fillRect);
-		RenderMenu();
-		/*for (int i = 0; i < mapSize; i++)
+		if (menu)
+		{
+			RenderMenu();
+			SDL_RenderPresent(ren);
+			continue;
+		}
+		if (lobby)
+		{
+			RenderLobby();
+			SDL_RenderPresent(ren);
+			continue;
+		}
+		for (int i = 0; i < mapSize; i++)
 		{
 			for (int j = 0; j < mapSize; j++)
 			{
@@ -545,7 +634,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		p1->Render(); p2->Render(); p3->Render(); p4->Render();
 		drawFPS();
 		Renderer::RenderText("X: " + to_string(controlledPlayer->X) + " Y: " + to_string(controlledPlayer->Y), font, white, 10, 70);
-		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);*/
+		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);
 		SDL_RenderPresent(ren);
 		//Sleep(33);
 	}

@@ -17,7 +17,8 @@ namespace Renderer
 
 	void RenderText(string message, TTF_Font* renderFont, SDL_Color color, int x, int y)
 	{
-		SDL_Surface* surfaceMessage = TTF_RenderText_Solid(renderFont, message.c_str(), color);
+		SDL_Surface* surfaceMessage = TTF_RenderText_Blended(renderFont, message.c_str(), color);
+				
 		SDL_Texture* Message = SDL_CreateTextureFromSurface(ren, surfaceMessage);
 		SDL_FreeSurface(surfaceMessage);
 
