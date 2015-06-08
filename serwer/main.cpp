@@ -341,7 +341,7 @@ BombermanGame create_default_world(int ile_graczy = 4, int round_time = 5 * seco
 	"  B B B B B  ";
 	constexpr std::size_t length = (sizeof data) - 1;
 	static_assert(length == w*h, "popraw planszę");
-	std::transform(std::begin(data), std::end(data), default_level.begin(), [](char c) -> Entity
+	std::transform(std::begin(data), std::begin(data)+length, default_level.begin(), [](char c) -> Entity
 	{
 		if(c == ' ')
 			return EmptySpace();
@@ -349,6 +349,7 @@ BombermanGame create_default_world(int ile_graczy = 4, int round_time = 5 * seco
 			return DestructibleWall();
 		else if(c == 'X')
 			return NondestructibleWall();
+		assert(false);
 	});
 	BombermanGame world(default_level, round_time);
 	std::array<Point, 4> player_positions =
