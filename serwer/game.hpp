@@ -58,7 +58,8 @@ private:
 	Point position_;
 	bool is_hurt_;
 	bool czy_klasc_bombe_;
-	static const int next_move = ticks_in_a_second;
+	static const int next_move = ticks_in_a_second/3;
+	static const int next_bomb = ticks_in_a_second*2;
 public:
 	void set_next_input(int dir);
 
