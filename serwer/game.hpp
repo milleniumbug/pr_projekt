@@ -51,6 +51,7 @@ class BombermanGame;
 class Player
 {
 private:
+	int next_direction_;
 	int direction_;
 	int time_to_stop_;
 	int time_set_bomb_;
@@ -59,11 +60,7 @@ private:
 	bool czy_klasc_bombe_;
 	static const int next_move = ticks_in_a_second;
 public:
-	void set_next_input(int dir)
-	{
-		direction_ = dir;
-		time_to_stop_ = next_move;
-	}
+	void set_next_input(int dir);
 
 	Point position() const
 	{
@@ -75,14 +72,27 @@ public:
 		return is_hurt_;
 	}
 
+	int direction() const
+	{
+		return direction_;
+	}
+
+	int move_progress_percent() const
+	{
+		if(time_to_stop_ == 0)
+			return 0;
+		return (next_move - time_to_stop_)*100/next_move;
+	}
+
 	void refresh(BombermanGame& world);
 	void hurt();
 
-	Player() :
+	Player(Point position) :
+		next_direction_(0),
 		direction_(0),
 		time_to_stop_(0),
 		time_set_bomb_(0),
-		position_(0, 0),
+		position_(position),
 		is_hurt_(false),
 		czy_klasc_bombe_(false)
 	{
@@ -201,6 +211,9 @@ public:
 
 	BombermanLevel current_level;
 	std::vector<Player> players;
+
+	static const int min_graczy = 2;
+	static const int max_graczy = 4;
 };
 
 template<typename T, typename U, typename V>
@@ -230,8 +243,13 @@ void serialize_to(OutputIterator output, BombermanGame& gamestate)
 		assert(in_range(pos.y(), std::numeric_limits<uint16_t>::min(), std::numeric_limits<uint16_t>::max()));
 		serialize_to(output, static_cast<uint16_t>(pos.x()));
 		serialize_to(output, static_cast<uint16_t>(pos.y()));
-		// TODO: na razie żadnych bonusów nie ma
-		serialize_to(output, static_cast<uint32_t>(0));
+		// przerobione pola
+		serialize_to(output, static_cast<uint8_t>(player.move_progress_percent()));
+		assert(in_range(player.direction(), -4, 4));
+		serialize_to(output, static_cast<uint8_t>(player.direction()));
+		// TODO: bomby
+		serialize_to(output, static_cast<uint8_t>(0));
+		serialize_to(output, static_cast<uint8_t>(0));
 	}
 }
 

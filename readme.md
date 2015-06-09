@@ -61,7 +61,13 @@ Stan gracza określa:
 
 (konieczne ze względu na możliwość kładzenia bomb pod sobą – dlatego pozycja gracza jest tu, a nie wśród danych planszy)
 
-4-bajtowe pole bitowe określające rodzaje bonusów otrzymane przez gracza. 
+1-bajtowa liczba bez znaku (wartości od 0 do 100) określająca "progres w wykonaniu ruchu" 
+
+1-bajtowa liczba ze znakiem określająca kierunek w którym idzie (wartości jak na dole w komunikacie 09, ale bez kładzenia bomby)
+
+1-bajtowa liczba bez znaku określająca czas do wybuchnięcia bomby, przeskalowany o 8 (tj. liczba 1 otrzymana oznacza że bomba należąca do tego gracza która wybuchnie jako pierwsza w kolejności od tej chwili wybuchnie za 8 milisekund, liczba 2 - że za 16 milisekund). Jeżeli nie ma żadnych bomb, wysyłane jest 0.
+
+1 bajt: nieużywany
 
 06:
 

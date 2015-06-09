@@ -34,6 +34,12 @@ enum class StanGry : unsigned char
 	gra_w_trakcie = 0x02
 };
 
+template<typename T, typename... Args>
+T make(Args&&... args)
+{
+	return T(std::forward<Args>(args)...);
+}
+
 template<typename RandomAccessIterator, typename Function>
 std::vector<char> skonstruuj_odpowiedz(RandomAccessIterator begin, RandomAccessIterator end, IPv4Address ip, int port, Function obsluzenie_pozostalych_przypadkow)
 {
@@ -315,6 +321,49 @@ struct Blackhole
 	}
 };
 
+BombermanGame create_default_world(int ile_graczy = 4, int round_time = 5 * seconds_in_a_minute * ticks_in_a_second)
+{
+	constexpr int w = 13, h = 13;
+	BombermanLevel default_level(w, h);
+	const char data[] = 
+	"  B B B B B  "
+	" X X X X X X "
+	"B B B B B B B"
+	" X X X X X X "
+	"B B B B B B B"
+	" X X X X X X "
+	"B B B B B B B"
+	" X X X X X X "
+	"B B B B B B B"
+	" X X X X X X "
+	"B B B B B B B"
+	" X X X X X X "
+	"  B B B B B  ";
+	constexpr std::size_t length = (sizeof data) - 1;
+	static_assert(length == w*h, "popraw planszę");
+	std::transform(std::begin(data), std::begin(data)+length, default_level.begin(), [](char c) -> Entity
+	{
+		if(c == ' ')
+			return EmptySpace();
+		else if(c == 'B')
+			return DestructibleWall();
+		else if(c == 'X')
+			return NondestructibleWall();
+		assert(false);
+	});
+	BombermanGame world(default_level, round_time);
+	std::array<Point, 4> player_positions =
+	{
+		Point(0, 0),
+		Point(w-1, h-1),
+		Point(0, h-1),
+		Point(w-1, 0)
+	};
+	assert(in_range(ile_graczy, BombermanGame::min_graczy, BombermanGame::max_graczy));
+	std::transform(player_positions.begin(), player_positions.begin()+ile_graczy, std::back_inserter(world.players), OVERLOAD_SET(make<Player>));
+	return world;
+}
+
 int main()
 {
 	// for select
@@ -337,9 +386,8 @@ int main()
 	std::vector<PlayerConnection> connections(ile_graczy);
 	bool gra_w_toku = false;
 	long long tick_number = 0;
-	BombermanLevel default_level(13, 13);
-	BombermanGame world(default_level, 5 * seconds_in_a_minute * ticks_in_a_second);
-	world.players.resize(ile_graczy);
+	
+	BombermanGame world = create_default_world();
 
 	auto rozpocznij_gre = [&]()
 	{
