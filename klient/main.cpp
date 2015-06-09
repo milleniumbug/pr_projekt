@@ -26,9 +26,9 @@ int framesCount = 0;
 int tempFramesCount = 0;
 int mapSize = 13;
 int versionNumber = 1;
-int tickrate = 30;
+int tickrate = 20;
 bool fpsLimiter = true;
-int fpsLimit = 120;
+int fpsLimit = 60;
 int fpsLimitMiliseconds = 1000 / fpsLimit;
 
 HANDLE moveThreadHandle = NULL;
@@ -41,6 +41,8 @@ void initConnection();
 #pragma comment(lib, "ws2_32.lib")
 
 SDL_Texture* texBlock;
+SDL_Texture* texImmortal;
+SDL_Texture* texBomba;
 SDL_Texture* arrowRight;
 Player* p1 = NULL;
 Player* p2 = NULL;
@@ -155,6 +157,7 @@ bool leftPressed = false;
 bool rightPressed = false;
 bool upPressed = false;
 bool downPressed = false;
+bool spacePressed = false;
 
 void nextPlayer()
 {
@@ -278,6 +281,7 @@ void GetServerInfo()
 
 void RenderMenu()
 {
+	Renderer::RenderTexture(texBomba, windowW / 2 - 150, windowH / 2 - 150, 300, 300);
 	Renderer::RenderText("Info: " + infoString, font, white, 100, 80);
 	Renderer::RenderText("IP:PORT = " + ipPortString, font, white, 100, 100);
 	Renderer::RenderText("Connect", font, white, 100, 120);
@@ -336,6 +340,8 @@ void HandleKeyboard(SDL_Event e)
 			leftPressed = true;
 		if (e.key.keysym.sym == SDLK_RIGHT)
 			rightPressed = true;
+		if (e.key.keysym.sym == SDLK_SPACE)
+			spacePressed = true;
 		if (e.key.keysym.sym == SDLK_LSHIFT)
 			multiplyFactor = 0.5f;
 	}
@@ -353,10 +359,8 @@ void HandleKeyboard(SDL_Event e)
 			doExit = true;
 		if (e.key.keysym.sym == SDLK_LSHIFT)
 			multiplyFactor = 1.0f;
-		if (e.key.keysym.sym == SDLK_TAB)
-			nextPlayer();
 		if (e.key.keysym.sym == SDLK_SPACE)
-			sendGameStateRequest = true;
+			spacePressed = false;
 	}
 }
 
@@ -426,13 +430,15 @@ void moveThread()
 		
 		int calcSum = 0;
 		if (leftPressed)
-			calcSum -= 4;
+			calcSum = -4;
 		if (rightPressed)
-			calcSum += 4;
+			calcSum = 4;
 		if (upPressed)
-			calcSum -= 1;
+			calcSum = -1;
 		if (downPressed)
-			calcSum += 1;
+			calcSum = 1;
+		if (spacePressed)
+			calcSum += 16;
 
 		if (calcSum != 0)
 		{
@@ -497,33 +503,57 @@ void recvThread()
 				{
 					for (int j = 0; j < mapSize; j++)
 					{
-						map[i][j] = Block(pucket.ReadByte(), tileSize, i, j);
+						map[j][i] = Block(pucket.ReadByte(), tileSize, j, i);
 					}
 				}
 				short p1X = pucket.ReadShort();
 				short p1Y = pucket.ReadShort();
-				int p1Bonus = pucket.ReadInt();
+				byte p1Progress = pucket.ReadByte();
+				byte p1Dir = pucket.ReadByte();
+				pucket.ReadByte(); //czas do jebniêcia bomby
+				pucket.ReadByte(); //nieu¿ywany bajt
 				short p2X = pucket.ReadShort();
 				short p2Y = pucket.ReadShort();
-				int p2Bonus = pucket.ReadInt();
+				byte p2Progress = pucket.ReadByte();
+				byte p2Dir = pucket.ReadByte();
+				pucket.ReadByte(); //czas do jebniêcia bomby
+				pucket.ReadByte(); //nieu¿ywany bajt
 				short p3X = pucket.ReadShort();
 				short p3Y = pucket.ReadShort();
-				int p3Bonus = pucket.ReadInt();
+				byte p3Progress = pucket.ReadByte();
+				byte p3Dir = pucket.ReadByte();
+				pucket.ReadByte(); //czas do jebniêcia bomby
+				pucket.ReadByte(); //nieu¿ywany bajt
 				short p4X = pucket.ReadShort();
 				short p4Y = pucket.ReadShort();
-				int p4Bonus = pucket.ReadInt();
+				byte p4Progress = pucket.ReadByte();
+				byte p4Dir = pucket.ReadByte();
+				pucket.ReadByte(); //czas do jebniêcia bomby
+				pucket.ReadByte(); //nieu¿ywany bajt
 				p1->X = p1X * 64 + 8;
 				p1->Y = p1Y * 64 + 8;
-				p1->Bonus = p1Bonus;
+				p1->WalkProgress = p1Progress;
+				p1->Direction = p1Dir;
+				if (p1->Direction > 10)
+					p1->Direction -= 256;
 				p2->X = p2X * 64 + 8;
 				p2->Y = p2Y * 64 + 8;
-				p2->Bonus = p2Bonus;
+				p2->WalkProgress = p2Progress;
+				p2->Direction = p2Dir;
+				if (p2->Direction > 10)
+					p2->Direction -= 256;
 				p3->X = p3X * 64 + 8;
 				p3->Y = p3Y * 64 + 8;
-				p3->Bonus = p3Bonus;
+				p3->WalkProgress = p3Progress;
+				p3->Direction = p3Dir;
+				if (p3->Direction > 10)
+					p3->Direction -= 256;
 				p4->X = p4X * 64 + 8;
 				p4->Y = p4Y * 64 + 8;
-				p4->Bonus = p4Bonus;
+				p4->WalkProgress = p4Progress;
+				p4->Direction = p4Dir;
+				if (p4->Direction > 10)
+					p4->Direction -= 256;
 			}
 			else
 			{
@@ -587,7 +617,7 @@ void initConnection()
 	byte response = p.ReadByte();
 	if (response != PacketType::ServerAccept)
 	{
-		if (p.RecvResult = 0xFFFFFFFF)
+		if (p.RecvResult == 0xFFFFFFFF)
 			lobbyMessage = "CLIENT: Connection failed.";
 		else if (response == PacketType::ServerGameAlreadyStarted)
 			lobbyMessage = "SERVER: Game already started.";
@@ -690,6 +720,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ticks = GetTickCount();
 
 	texBlock = Loader::LoadTexture(mainPath + "gfx\\block.bmp");
+	texImmortal = Loader::LoadTexture(mainPath + "gfx\\immortalblock.bmp");
+	texBomba = Loader::LoadTexture(mainPath + "gfx\\bomba.bmp");
 	arrowRight = Loader::LoadTexture(mainPath + "gfx\\arrow.bmp");
 	p1 = new Player(0, 1, 0, 0, 48, mainPath + "gfx\\player1.bmp");
 	p2 = new Player(1, 3, 12, 0, 48, mainPath + "gfx\\player2.bmp");
@@ -733,11 +765,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			for (int j = 0; j < mapSize; j++)
 			{
-				if (map[i][j].type != 0)
-					Renderer::RenderTexture(texBlock, i*tileSize, j * tileSize, tileSize, tileSize);
+				if (map[i][j].type == 1)
+					Renderer::RenderTexture(texBlock, i * tileSize, j * tileSize, tileSize, tileSize);
+				else if (map[i][j].type == 2)
+					Renderer::RenderTexture(texImmortal, i * tileSize, j * tileSize, tileSize, tileSize);
+				else if (map[i][j].type == 3)
+					Renderer::RenderTexture(texBomba, i * tileSize, j * tileSize, tileSize, tileSize);
 			}
 		}
 		p1->Render(); p2->Render(); p3->Render(); p4->Render();
+		
 		drawFPS();
 		Renderer::RenderText("X: " + to_string(controlledPlayer->X) + " Y: " + to_string(controlledPlayer->Y), font, white, 10, 70);
 		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);

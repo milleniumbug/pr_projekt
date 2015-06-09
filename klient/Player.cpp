@@ -9,6 +9,7 @@ Player::Player(int id, int dir, int mapX, int mapY, int size, string bmpPath)
 	Y = mapY * TILE_SIZE;
 	Size = size;
 	Bonus = 0;
+	WalkProgress = 0;
 	Textures = new TexArray(bmpPath);
 }
 
@@ -29,12 +30,16 @@ int Player::MapY(int offset)
 
 void Player::Render()
 {
+	int xDiff = 0;
+	int yDiff = 0;
+	if (Direction != 0)
+		int a = 0;
 	switch (Direction)
 	{
-		case 0:	Textures->current = Textures->up; break;
-		case 1:	Textures->current = Textures->right; break;
-		case 2:	Textures->current = Textures->down;	break;
-		case 3: Textures->current = Textures->left; break;
+		case -1: Textures->current = Textures->up; yDiff = -(int)((float)TILE_SIZE * ((float)WalkProgress / 100.0f)); break;
+		case 1: Textures->current = Textures->down; yDiff = (int)((float)TILE_SIZE * ((float)WalkProgress / 100.0f)); break;
+		case -4: Textures->current = Textures->left; xDiff = -(int)((float)TILE_SIZE * ((float)WalkProgress / 100.0f)); break;
+		case 4: Textures->current = Textures->right; xDiff = (int)((float)TILE_SIZE * ((float)WalkProgress / 100.0f)); break;
 	}
-	Renderer::RenderTexture(Textures->current, X, Y, Size, Size);
+	Renderer::RenderTexture(Textures->current, X + xDiff, Y + yDiff, Size, Size);
 }
