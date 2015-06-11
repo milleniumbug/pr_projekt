@@ -33,4 +33,23 @@ namespace Renderer
 		SDL_RenderCopy(ren, Message, NULL, &Message_rect);
 		SDL_DestroyTexture(Message);
 	}
+
+	void RenderTextSmall(string message, TTF_Font* renderFont, SDL_Color color, int x, int y)
+	{
+		SDL_Surface* surfaceMessage = TTF_RenderText_Blended(renderFont, message.c_str(), color);
+
+		SDL_Texture* Message = SDL_CreateTextureFromSurface(ren, surfaceMessage);
+		SDL_FreeSurface(surfaceMessage);
+
+		SDL_Rect Message_rect;
+		int w, h;
+		TTF_SizeText(font, message.c_str(), &w, &h);
+		Message_rect.x = x;
+		Message_rect.y = y;
+		Message_rect.w = w/2;
+		Message_rect.h = h/2;
+
+		SDL_RenderCopy(ren, Message, NULL, &Message_rect);
+		SDL_DestroyTexture(Message);
+	}
 }

@@ -16,6 +16,7 @@ string mainPath;
 
 SDL_Renderer* ren = NULL;
 TTF_Font* font = NULL;
+TTF_Font* bombTimeFont = NULL;
 bool doExit = false;
 SDL_Color red;
 SDL_Color white = {255, 255, 255, 255};
@@ -44,6 +45,7 @@ SDL_Texture* texBlock;
 SDL_Texture* texImmortal;
 SDL_Texture* texBomba;
 SDL_Texture* arrowRight;
+SDL_Texture* texExplosionEffect;
 Player* p1 = NULL;
 Player* p2 = NULL;
 Player* p3 = NULL;
@@ -78,6 +80,14 @@ enum GameState : byte
 	Running = 0x02
 };
 
+enum BlockType : byte
+{
+	Empty = 0,
+	Destructible = 1,
+	Imdestructible = 2,
+	Bomb = 3
+};
+
 class Block
 {
 	public:
@@ -85,6 +95,7 @@ class Block
 		int size;
 		int x;
 		int y;
+		int hitmarkerExpireTime;
 
 	Block()
 	{
@@ -92,6 +103,7 @@ class Block
 		size = 0;
 		x = 0;
 		y = 0;
+		hitmarkerExpireTime = 0;
 	}
 
 	Block(int Type, int Size, int X, int Y)
@@ -100,6 +112,7 @@ class Block
 		size = Size;
 		x = X;
 		y = Y;
+		hitmarkerExpireTime = 0;
 	}
 };
 
@@ -503,7 +516,12 @@ void recvThread()
 				{
 					for (int j = 0; j < mapSize; j++)
 					{
+						Block oldBlock = map[j][i];
 						map[j][i] = Block(pucket.ReadByte(), tileSize, j, i);
+						if (oldBlock.type == BlockType::Bomb && map[j][i].type != BlockType::Bomb)
+						{
+							map[j][i].hitmarkerExpireTime = GetTickCount() + 2000;
+						}
 					}
 				}
 				short p1X = pucket.ReadShort();
@@ -674,6 +692,14 @@ void initConnection()
 	moveThreadHandle = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)moveThread, NULL, NULL, NULL);
 }
 
+int readType(int x, int y)
+{
+	if (x >= mapSize || x < 0 || y >= mapSize || y < 0)
+		return -1;
+	else
+		return map[y][x].type;
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -710,6 +736,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 1;
 	}
 
+
 	red.a = 255;
 	red.r = 255;
 	red.b = 0;
@@ -723,6 +750,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	texImmortal = Loader::LoadTexture(mainPath + "gfx\\immortalblock.bmp");
 	texBomba = Loader::LoadTexture(mainPath + "gfx\\bomba.bmp");
 	arrowRight = Loader::LoadTexture(mainPath + "gfx\\arrow.bmp");
+	texExplosionEffect = Loader::LoadTexture(mainPath + "gfx\\hitmarker3.bmp");
+	SDL_SetTextureBlendMode(texExplosionEffect, SDL_BLENDMODE_BLEND);
+	SDL_SetTextureAlphaMod(texExplosionEffect, 60);
 	p1 = new Player(0, 1, 0, 0, 48, mainPath + "gfx\\player1.bmp");
 	p2 = new Player(1, 3, 12, 0, 48, mainPath + "gfx\\player2.bmp");
 	p3 = new Player(2, 1, 0, 12, 48, mainPath + "gfx\\player3.bmp");
@@ -749,6 +779,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		SDL_Rect fillRect = {windowH, windowW, 0, 0}; 
 		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255); 
 		SDL_RenderFillRect(ren, &fillRect);
+		//Renderer::RenderTextSmall("Wszystko chuj", font, white, 0, 0);
+		//Renderer::RenderTexture(texExplosionEffect, 200, 0, 64, 64);
 		if (menu)
 		{
 			RenderMenu();
@@ -765,6 +797,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			for (int j = 0; j < mapSize; j++)
 			{
+				
 				if (map[i][j].type == 1)
 					Renderer::RenderTexture(texBlock, i * tileSize, j * tileSize, tileSize, tileSize);
 				else if (map[i][j].type == 2)
@@ -774,6 +807,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 		p1->Render(); p2->Render(); p3->Render(); p4->Render();
+		for (int i = 0; i < mapSize; i++)
+		{
+			for (int j = 0; j < mapSize; j++)
+			{
+				if (map[i][j].hitmarkerExpireTime > GetTickCount())
+				{
+					Renderer::RenderTexture(texExplosionEffect, i * tileSize, j * tileSize, tileSize, tileSize);
+					if (readType(j, i - 1) != BlockType::Imdestructible)
+						Renderer::RenderTexture(texExplosionEffect, (i - 1) * tileSize, j * tileSize, tileSize, tileSize);
+					if (readType(j, i + 1) != BlockType::Imdestructible)
+						Renderer::RenderTexture(texExplosionEffect, (i + 1) * tileSize, j * tileSize, tileSize, tileSize);
+					if (readType(j - 1, i) != BlockType::Imdestructible)
+						Renderer::RenderTexture(texExplosionEffect, i * tileSize, (j - 1) * tileSize, tileSize, tileSize);
+					if (readType(j + 1, i) != BlockType::Imdestructible)
+						Renderer::RenderTexture(texExplosionEffect, i * tileSize, (j + 1) * tileSize, tileSize, tileSize);
+				}
+			}
+		}
 		
 		drawFPS();
 		Renderer::RenderText("X: " + to_string(controlledPlayer->X) + " Y: " + to_string(controlledPlayer->Y), font, white, 10, 70);
