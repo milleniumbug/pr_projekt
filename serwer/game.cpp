@@ -150,15 +150,16 @@ void Player::refresh(BombermanGame& world)
 		direction_ = 0;
 	}
 
-	if(czy_klasc_bombe_)
+	if(czy_klasc_bombe_ && time_set_bomb_ <= 0)
 	{
 		dispatch(functions(
 		[&](EmptySpace& sp)
 		{
 			world[position_] = Bomb(ticks_in_a_second * 5, 2, this);
-			czy_klasc_bombe_ = false;
 		},
 		[](Default){}), world[position_]);
+		time_set_bomb_ = next_bomb;
+		czy_klasc_bombe_ = false;
 	}
 }
 
@@ -169,7 +170,8 @@ void Player::hurt()
 
 void Player::ustaw_bombe()
 {
-	czy_klasc_bombe_ = true;
+	if(time_set_bomb_ <= 0)
+		czy_klasc_bombe_ = true;
 }
 
 void Player::set_next_input(int dir)
