@@ -11,6 +11,35 @@
 
 using namespace std::string_literals;
 
+std::string get_socket_error_string()
+{
+	#ifdef _WIN32
+	int err = WSAGetLastError();
+	char* errorText = nullptr;
+	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,
+		nullptr,
+		err,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		// rotfl WinAPI (dla FORMAT_MESSAGE_ALLOCATE_BUFFER)
+		// The lpBuffer parameter is a pointer to an LPTSTR; you must cast the pointer to an LPTSTR (for example, (LPTSTR)&lpBuffer).
+		(char*)&errorText,
+		0,
+		nullptr);
+	struct local_free_deleter
+	{
+		void operator()(char* ptr)
+		{
+			LocalFree(ptr);
+		}
+	};
+	std::unique_ptr<char, local_free_deleter> managed_ret(errorText);
+	std::string retval(managed_ret.get());
+	return retval;
+	#else
+	return strerror(errno);
+	#endif
+}
+
 UDPSocket::UDPSocket(int port)
 {
 	fd_ = FileDescriptor(socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP));
@@ -24,7 +53,7 @@ UDPSocket::UDPSocket(int port)
 	sa_.sin_port = htons(port);
 	if(bind(fd_,(struct sockaddr*)&sa_, sizeof(sa_)) == -1)
 	{
-		throw SocketError("Failure to create socket"s + strerror(errno));
+		throw SocketError("Failure to create socket: "s + get_socket_error_string());
 	}
 }
 
@@ -40,7 +69,7 @@ const char* UDPSocket::send(const char* data_begin, const char* data_end, IPv4Ad
 	ssize_t ret = sendto(fd_.fd(), data_begin, distance, 0, (struct sockaddr*)&sa, tolen);
 	if(ret == -1)
 	{
-		throw SocketError("Send fail: "s + strerror(errno));
+		throw SocketError("Send fail: "s + get_socket_error_string());
 	}
 	return data_begin + ret;
 }
@@ -53,7 +82,7 @@ char* UDPSocket::receive(char* data_begin, char* data_end, IPv4Address& source, 
 	ssize_t ret = recvfrom(fd_.fd(), data_begin, distance, 0, (struct sockaddr*)&sa, &fromlen);
 	if(ret == -1)
 	{
-		throw SocketError("Receive fail: "s + strerror(errno));
+		throw SocketError("Receive fail: "s + get_socket_error_string());
 	}
 	auto a = ntohl(sa.sin_addr.s_addr);
 	IPv4Address address((a >> 24)&0xFF, (a >> 16)&0xFF, (a >> 8)&0xFF, (a >> 0)&0xFF);

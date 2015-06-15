@@ -8,6 +8,7 @@
 #include <array>
 #include <unordered_set>
 #include <algorithm>
+#include <memory>
 #include <limits>
 #include <climits>
 #include <functional>
