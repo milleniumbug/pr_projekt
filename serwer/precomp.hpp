@@ -14,11 +14,19 @@
 #include <iterator>
 #include <cctype>
 #include <type_traits>
+#include <chrono>
+
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/timerfd.h>
 #include <netinet/in.h>
+#else
+#include <winsock2.h>
+#include <WS2tcpip.h>
+#endif
+
 #include <unistd.h>
 #include <fcntl.h>

@@ -6,8 +6,10 @@
 static_assert(CHAR_BIT == 8, "char musi mieć 8 bitów");
 const std::uint32_t wersja_serwera = 1;
 
-const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
-//const struct timespec logical_tick_time = { 0, static_cast<unsigned long>(1E+9 / 2) }; // do testów
+const struct timespec logical_tick_timespec = { 0, static_cast<unsigned long>(1E+9 / ticks_in_a_second) };
+//const struct timespec logical_tick_timespec = { 0, static_cast<unsigned long>(1E+9 / 2) }; // do testów
+const struct timeval logical_tick_timeval = { 0, static_cast<unsigned long>(1E+6 / ticks_in_a_second) };
+//const struct timeval logical_tick_timeval = { 0, static_cast<unsigned long>(1E+6 / 2) }; // do testów
 
 #define OVERLOAD_SET(name) ([&](auto&&... args) -> decltype(auto) { return name(std::forward<decltype(args)>(args)...); })
 
@@ -364,18 +366,35 @@ BombermanGame create_default_world(int ile_graczy = 4, int round_time = 5 * seco
 	return world;
 }
 
+template<typename Duration>
+struct timeval timeval_decrease(const struct timeval& time, Duration how_many)
+{
+	using namespace std::chrono;
+	seconds sec(time.tv_sec);
+	microseconds usec(time.tv_usec);
+	auto advanced = sec + usec - how_many;
+	struct timeval retval;
+	retval.tv_sec = duration_cast<seconds>(advanced % seconds(1)).count();
+	retval.tv_usec = duration_cast<microseconds>(advanced % microseconds(1)).count();
+	return retval;
+}
+
+bool is_positive(const struct timeval& time)
+{
+	return (time.tv_sec > 0 && time.tv_usec > 0) || (time.tv_sec == 0 && time.tv_usec > 0) || (time.tv_sec > 0 && time.tv_usec == 0);
+}
+
 int main()
 {
+	initialize_networking();
+
 	// for select
 	int max_fds = 0;
 	fd_set do_odczytu;
 	FD_ZERO(&do_odczytu);
-
-	// timer initialization
-	FileDescriptor timer(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK));
-	FD_SET(timer.fd(), &do_odczytu);
-	max_fds = std::max(timer.fd(), max_fds);
-
+	
+	typedef std::chrono::steady_clock clock;
+	
 	// UDP Socket
 	UDPSocket socket(60000);
 	FD_SET(socket.fd(), &do_odczytu);
@@ -386,6 +405,8 @@ int main()
 	std::vector<PlayerConnection> connections(ile_graczy);
 	bool gra_w_toku = false;
 	long long tick_number = 0;
+	struct timeval remaining_time;
+	struct timeval* remaining_time_p = nullptr;
 	
 	BombermanGame world = create_default_world();
 
@@ -393,31 +414,36 @@ int main()
 	{
 		gra_w_toku = true;
 		tick_number = 0;
-		const struct itimerspec timeout = { logical_tick_time, logical_tick_time };
-		timerfd_settime(timer, 0, &timeout, nullptr);
+		remaining_time = logical_tick_timeval;
+		remaining_time_p = &remaining_time;
 	};
 
 	auto przerwij_gre = [&]()
 	{
 		gra_w_toku = false;
 		tick_number = 0;
-		const struct itimerspec timeout = { 0 };
-		timerfd_settime(timer, 0, nullptr, nullptr);
+		remaining_time_p = nullptr;
 	};
 	while(true)
 	{
 		fd_set rfds = do_odczytu;
 
-		if(select(max_fds+1, &rfds, nullptr, nullptr, nullptr) <= 0)
+		auto before = clock::now();
+		const struct timeval time_before = remaining_time;
+		if(select(max_fds+1, &rfds, nullptr, nullptr, remaining_time_p) < 0)
 			assert(false); // wth
-		
-		if(FD_ISSET(timer.fd(), &rfds))
-		{
-			std::uint64_t ticks;
-			read(timer, &ticks, sizeof ticks);
-			++tick_number;
 
-			std::cout << "LOGIKA GRY! Przegapionych update'ow: " << ticks-1 << ", tick numer: " << tick_number << "\r" << std::flush;
+		auto after = clock::now();
+		// można zakładać, że remaining_time ma nieokreśloną wartość
+		// dla przenośności - ustaw ją ponownie
+		remaining_time = timeval_decrease(time_before, after-before);
+
+		if(!is_positive(remaining_time))
+		{
+			remaining_time = logical_tick_timeval;
+
+			++tick_number;
+			std::cout << "LOGIKA GRY!" << "\r" << std::flush;
 			world.refresh();
 			for(auto& playerconn : connections)
 				--playerconn.timeout;

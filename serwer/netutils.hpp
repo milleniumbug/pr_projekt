@@ -58,4 +58,6 @@ public:
 	char* receive(char* data_begin, char* data_end, IPv4Address& source, int& port);
 };
 
+bool initialize_networking();
+
 #endif

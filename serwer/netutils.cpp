@@ -1,7 +1,11 @@
 #include "precomp.hpp"
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netinet/in.h>
+#include <netinet/in.h>	
+#endif
 #include <unistd.h>
 #include "netutils.hpp"
 
@@ -103,4 +107,15 @@ IPv4Address::IPv4Address() :
 uint32_t IPv4Address::as_uint()
 {
 	return ((uint32_t)addr[0] << 24) | ((uint32_t)addr[1] << 16) | ((uint32_t)addr[2] << 8) | ((uint32_t)addr[3] << 0);
+}
+
+bool initialize_networking()
+{
+#ifdef _WIN32
+	WSADATA wsaData;
+	int error = WSAStartup(MAKEWORD(2,2), &wsaData);
+	return error == 0;
+#else
+	return true;
+#endif
 }

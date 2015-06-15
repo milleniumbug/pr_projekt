@@ -13,3 +13,7 @@ add_executable(BombermanSerwer ${Bomberman_sources})
 
 # for older versions. Note - not compatible with every compiler
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+
+# kompilacja pod windowsem, MinGW gcc 4.9.2
+# brudny hack
+# g++ -O3 -Wall -std=c++14 *.cpp -lws2_32 -lrt -o BombermanSerwer.exe
