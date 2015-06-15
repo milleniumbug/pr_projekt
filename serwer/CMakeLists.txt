@@ -16,4 +16,4 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
 # kompilacja pod windowsem, MinGW gcc 4.9.2
 # brudny hack
-# g++ -O3 -Wall -std=c++14 *.cpp -lws2_32 -o BombermanSerwer.exe
+# g++ -DNO_DEBUG_OUTPUT -O3 -Wall -std=c++14 *.cpp -lws2_32 -o BombermanSerwer.exe

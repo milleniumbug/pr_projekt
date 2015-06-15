@@ -281,6 +281,7 @@ void odpowiedz_gra_w_toku(OutputIterator output, RandomAccessIterator begin, Ran
 template<typename InputIterator>
 void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator end)
 {
+#ifndef NO_DEBUG_OUTPUT
 	static const char hexchars[] = "0123456789ABCDEF";
 	static const int hexbase = 16;
 	std::for_each(begin, end, [&](char s)
@@ -290,11 +291,14 @@ void debug_output_as_hex(std::ostream& out, InputIterator begin, InputIterator e
 		out.put(hexchars[c % hexbase]);
 		out.put(' ');
 	});
+	out.flush();
+#endif
 }
 
 template<typename InputIterator>
 void debug_output(std::ostream& out, InputIterator begin, InputIterator end)
 {
+#ifndef NO_DEBUG_OUTPUT
 	static const char hexchars[] = "0123456789ABCDEF";
 	static const int hexbase = 16;
 	std::for_each(begin, end, [&](char s)
@@ -312,6 +316,17 @@ void debug_output(std::ostream& out, InputIterator begin, InputIterator end)
 			out.put(' ');
 		}
 	});
+	out.flush();
+#endif
+}
+
+template<typename T>
+void debug_output(std::ostream& out, const T& what)
+{
+#ifndef NO_DEBUG_OUTPUT
+	out << what;
+	out.flush();
+#endif
 }
 
 struct Blackhole
@@ -392,9 +407,9 @@ int main()
 	int max_fds = 0;
 	fd_set do_odczytu;
 	FD_ZERO(&do_odczytu);
-	
+
 	typedef std::chrono::steady_clock clock;
-	
+
 	// UDP Socket
 	UDPSocket socket(60000);
 	FD_SET(socket.fd(), &do_odczytu);
@@ -443,7 +458,7 @@ int main()
 			remaining_time = logical_tick_timeval;
 
 			++tick_number;
-			std::cout << "LOGIKA GRY!" << "\r" << std::flush;
+			debug_output(std::cout, "LOGIKA GRY\r");
 			world.refresh();
 			for(auto& playerconn : connections)
 				--playerconn.timeout;
@@ -456,11 +471,10 @@ int main()
 			IPv4Address source;
 			int port;
 			end = socket.receive(begin, end, source, port);
-			std::cout << "\nODEBRANO:\n";
+			debug_output(std::cout, "\nODEBRANO:\n");
 			debug_output(std::cout, begin, end);
-			std::cout << "\n";
+			debug_output(std::cout, "\n");
 			debug_output_as_hex(std::cout, begin, end);
-			std::cout << "\n" << std::flush;
 
 			std::vector<char> response;
 			if(gra_w_toku)
@@ -485,11 +499,11 @@ int main()
 				response = skonstruuj_odpowiedz(begin, end, source, port, handler);
 			}
 			socket.send(response.data(), response.data()+response.size(), source, port);
-			std::cout << "WYSLANO:\n";
+			debug_output(std::cout, "\nWYSLANO:\n");
 			debug_output(std::cout, response.begin(), response.end());
-			std::cout << "\n";
+			debug_output(std::cout, "\n");
 			debug_output_as_hex(std::cout, response.begin(), response.end());
-			std::cout << "\n" << std::flush;
+			debug_output(std::cout, "\n");
 		}
 	}
 }
