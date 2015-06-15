@@ -399,9 +399,11 @@ bool is_positive(const struct timeval& time)
 	return (time.tv_sec > 0 && time.tv_usec > 0) || (time.tv_sec == 0 && time.tv_usec > 0) || (time.tv_sec > 0 && time.tv_usec == 0);
 }
 
-int main()
+int main(int argc, char** argv)
 {
-	initialize_networking();
+	const int listening_port = argc >= 2 ? std::stoi(argv[1]) : 60000;
+
+	NetworkingInitializer netinit;
 
 	// for select
 	int max_fds = 0;
@@ -411,7 +413,7 @@ int main()
 	typedef std::chrono::steady_clock clock;
 
 	// UDP Socket
-	UDPSocket socket(60000);
+	UDPSocket socket(listening_port);
 	FD_SET(socket.fd(), &do_odczytu);
 	max_fds = std::max(socket.fd(), max_fds);
 

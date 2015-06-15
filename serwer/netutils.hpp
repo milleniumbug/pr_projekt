@@ -59,5 +59,25 @@ public:
 };
 
 bool initialize_networking();
+bool deinitialize_networking();
+
+class NetworkingInitializer
+{
+public:
+	NetworkingInitializer()
+	{
+		initialize_networking();
+	}
+
+	~NetworkingInitializer()
+	{
+		deinitialize_networking();
+	}
+
+	NetworkingInitializer(const NetworkingInitializer&) = delete;
+	NetworkingInitializer(NetworkingInitializer&&) = delete;
+	NetworkingInitializer& operator=(const NetworkingInitializer&) = delete;
+	NetworkingInitializer& operator=(NetworkingInitializer&&) = delete;
+};
 
 #endif

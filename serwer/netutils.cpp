@@ -148,3 +148,11 @@ bool initialize_networking()
 	return true;
 #endif
 }
+
+bool deinitialize_networking()
+{
+#ifdef _WIN32
+	WSACleanup();
+#endif
+	return true;
+}
