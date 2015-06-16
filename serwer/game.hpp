@@ -250,7 +250,7 @@ void serialize_to(OutputIterator output, BombermanGame& gamestate)
 		serialize_to(output, static_cast<uint8_t>(player.direction()));
 		// TODO: bomby
 		serialize_to(output, static_cast<uint8_t>(0));
-		serialize_to(output, static_cast<uint8_t>(0));
+		serialize_to(output, static_cast<uint8_t>(!player.is_hurt()));
 	}
 }
 

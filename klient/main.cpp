@@ -1,7 +1,7 @@
 #include "main.h"
 
+#include "EnumTypes.h"
 #include <string>
-#include <Windows.h>
 #include <SDL2_rotozoom.h>
 #include "TexArray.h"
 #include "Loader.h"
@@ -21,6 +21,7 @@ bool doExit = false;
 SDL_Color red;
 SDL_Color white = {255, 255, 255, 255};
 SDL_Color colorKey = {255, 255, 0, 255};
+SDL_Color blue = {0, 155, 255, 255};
 SDL_Window* win = NULL;
 int ticks = 0;
 int framesCount = 0;
@@ -42,8 +43,10 @@ void initConnection();
 #pragma comment(lib, "ws2_32.lib")
 
 SDL_Texture* texBlock;
+SDL_Texture* texGround;
 SDL_Texture* texImmortal;
 SDL_Texture* texBomba;
+SDL_Texture* texBombaTransparent;
 SDL_Texture* arrowRight;
 SDL_Texture* texExplosionEffect;
 Player* p1 = NULL;
@@ -56,37 +59,6 @@ int playerId = 0;
 int tileSize = 64;
 int windowW = mapSize * tileSize, windowH = mapSize * tileSize;
 int playerSize = 48;
-
-enum PacketType : byte
-{
-	ClientJoinGame = 0x01,
-	ServerAccept = 0x02,
-	ClientRequestGameState = 0x03,
-	ServerSendGameState = 0x04,
-	ClientRequestServerInfo = 0x05,
-	ServerSendServerInfo = 0x06,
-	ClientKeepAlive = 0x07,
-	ClientDisconnect = 0x08,
-	ClientPlayerAction = 0x09,
-	ServerUnknownPacket = 0x71,
-	ServerIncompatibleVersion = 0x72,
-	ServerGameAlreadyStarted = 0x73,
-	ServerIsFull = 0x74
-};
-
-enum GameState : byte
-{
-	Lobby = 0x01,
-	Running = 0x02
-};
-
-enum BlockType : byte
-{
-	Empty = 0,
-	Destructible = 1,
-	Imdestructible = 2,
-	Bomb = 3
-};
 
 class Block
 {
@@ -204,7 +176,7 @@ Connection connection;
 
 int selectedEntry = 0;
 string infoString = "";
-string ipPortString = "192.168.56.101:60000";
+string ipPortString = "127.0.0.1:60000";
 string ip = "";
 int port = -1;
 
@@ -369,7 +341,10 @@ void HandleKeyboard(SDL_Event e)
 		else if (e.key.keysym.sym == SDLK_RIGHT)
 			rightPressed = false;
 		if (e.key.keysym.sym == SDLK_ESCAPE)
+		{
+			connection.Disconnect();
 			doExit = true;
+		}
 		if (e.key.keysym.sym == SDLK_LSHIFT)
 			multiplyFactor = 1.0f;
 		if (e.key.keysym.sym == SDLK_SPACE)
@@ -520,7 +495,7 @@ void recvThread()
 						map[j][i] = Block(pucket.ReadByte(), tileSize, j, i);
 						if (oldBlock.type == BlockType::Bomb && map[j][i].type != BlockType::Bomb)
 						{
-							map[j][i].hitmarkerExpireTime = GetTickCount() + 2000;
+							map[j][i].hitmarkerExpireTime = time(NULL) + 2500;
 						}
 					}
 				}
@@ -529,49 +504,53 @@ void recvThread()
 				byte p1Progress = pucket.ReadByte();
 				byte p1Dir = pucket.ReadByte();
 				pucket.ReadByte(); //czas do jebniêcia bomby
-				pucket.ReadByte(); //nieu¿ywany bajt
+				byte p1Alive = pucket.ReadByte();
 				short p2X = pucket.ReadShort();
 				short p2Y = pucket.ReadShort();
 				byte p2Progress = pucket.ReadByte();
 				byte p2Dir = pucket.ReadByte();
 				pucket.ReadByte(); //czas do jebniêcia bomby
-				pucket.ReadByte(); //nieu¿ywany bajt
+				byte p2Alive = pucket.ReadByte();
 				short p3X = pucket.ReadShort();
 				short p3Y = pucket.ReadShort();
 				byte p3Progress = pucket.ReadByte();
 				byte p3Dir = pucket.ReadByte();
 				pucket.ReadByte(); //czas do jebniêcia bomby
-				pucket.ReadByte(); //nieu¿ywany bajt
+				byte p3Alive = pucket.ReadByte();
 				short p4X = pucket.ReadShort();
 				short p4Y = pucket.ReadShort();
 				byte p4Progress = pucket.ReadByte();
 				byte p4Dir = pucket.ReadByte();
 				pucket.ReadByte(); //czas do jebniêcia bomby
-				pucket.ReadByte(); //nieu¿ywany bajt
+				byte p4Alive = pucket.ReadByte();
 				p1->X = p1X * 64 + 8;
 				p1->Y = p1Y * 64 + 8;
 				p1->WalkProgress = p1Progress;
 				p1->Direction = p1Dir;
 				if (p1->Direction > 10)
 					p1->Direction -= 256;
+				p1->IsAlive = p1Alive;
 				p2->X = p2X * 64 + 8;
 				p2->Y = p2Y * 64 + 8;
 				p2->WalkProgress = p2Progress;
 				p2->Direction = p2Dir;
 				if (p2->Direction > 10)
 					p2->Direction -= 256;
+				p2->IsAlive = p2Alive;
 				p3->X = p3X * 64 + 8;
 				p3->Y = p3Y * 64 + 8;
 				p3->WalkProgress = p3Progress;
 				p3->Direction = p3Dir;
 				if (p3->Direction > 10)
 					p3->Direction -= 256;
+				p3->IsAlive = p3Alive;
 				p4->X = p4X * 64 + 8;
 				p4->Y = p4Y * 64 + 8;
 				p4->WalkProgress = p4Progress;
 				p4->Direction = p4Dir;
 				if (p4->Direction > 10)
 					p4->Direction -= 256;
+				p4->IsAlive = p4Alive;
 			}
 			else
 			{
@@ -700,6 +679,12 @@ int readType(int x, int y)
 		return map[y][x].type;
 }
 
+void lobbyTimeout()
+{
+	Sleep(5000);
+	lobby = false;
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -748,11 +733,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	texBlock = Loader::LoadTexture(mainPath + "gfx\\block.bmp");
 	texImmortal = Loader::LoadTexture(mainPath + "gfx\\immortalblock.bmp");
+	texGround = Loader::LoadTexture(mainPath + "gfx\\ground.bmp");
 	texBomba = Loader::LoadTexture(mainPath + "gfx\\bomba.bmp");
+	texBombaTransparent = Loader::LoadTexture(mainPath + "gfx\\bombx.bmp");
 	arrowRight = Loader::LoadTexture(mainPath + "gfx\\arrow.bmp");
-	texExplosionEffect = Loader::LoadTexture(mainPath + "gfx\\hitmarker3.bmp");
-	SDL_SetTextureBlendMode(texExplosionEffect, SDL_BLENDMODE_BLEND);
-	SDL_SetTextureAlphaMod(texExplosionEffect, 60);
+	texExplosionEffect = Loader::LoadTexture(mainPath + "gfx\\hitmarker4.bmp");
 	p1 = new Player(0, 1, 0, 0, 48, mainPath + "gfx\\player1.bmp");
 	p2 = new Player(1, 3, 12, 0, 48, mainPath + "gfx\\player2.bmp");
 	p3 = new Player(2, 1, 0, 12, 48, mainPath + "gfx\\player3.bmp");
@@ -775,9 +760,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		//Render the scene
 		currentFrameTime = SDL_GetTicks();
+		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255);
 		SDL_RenderClear(ren);
 		SDL_Rect fillRect = {windowH, windowW, 0, 0}; 
-		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255); 
 		SDL_RenderFillRect(ren, &fillRect);
 		//Renderer::RenderTextSmall("Wszystko chuj", font, white, 0, 0);
 		//Renderer::RenderTexture(texExplosionEffect, 200, 0, 64, 64);
@@ -797,13 +782,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			for (int j = 0; j < mapSize; j++)
 			{
-				
-				if (map[i][j].type == 1)
+				if (map[i][j].type == 0)
+					Renderer::RenderTexture(texGround, i * tileSize, j * tileSize, tileSize, tileSize);
+				else if (map[i][j].type == 1)
 					Renderer::RenderTexture(texBlock, i * tileSize, j * tileSize, tileSize, tileSize);
 				else if (map[i][j].type == 2)
 					Renderer::RenderTexture(texImmortal, i * tileSize, j * tileSize, tileSize, tileSize);
 				else if (map[i][j].type == 3)
-					Renderer::RenderTexture(texBomba, i * tileSize, j * tileSize, tileSize, tileSize);
+					Renderer::RenderTexture(texBombaTransparent, i * tileSize, j * tileSize, tileSize, tileSize);
 			}
 		}
 		p1->Render(); p2->Render(); p3->Render(); p4->Render();
@@ -811,7 +797,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		{
 			for (int j = 0; j < mapSize; j++)
 			{
-				if (map[i][j].hitmarkerExpireTime > GetTickCount())
+				if (map[i][j].hitmarkerExpireTime > time(NULL))
 				{
 					Renderer::RenderTexture(texExplosionEffect, i * tileSize, j * tileSize, tileSize, tileSize);
 					if (readType(j, i - 1) != BlockType::Imdestructible)
@@ -827,12 +813,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 		
 		drawFPS();
-		Renderer::RenderText("X: " + to_string(controlledPlayer->X) + " Y: " + to_string(controlledPlayer->Y), font, white, 10, 70);
-		Renderer::RenderText("X: " + to_string(mapX) + " Y: " + to_string(mapY), font, red, 10, 100);
 		if (connectionProblem)
 			Renderer::RenderText("Connection problem", font, red, 0, 0);
 		Renderer::RenderText("Time left: " + to_string(timeLeft), font, white, 0, 50);
 		Renderer::RenderText("Player ID: " + to_string(playerId), font, white, 0, 150);
+		if (!controlledPlayer->IsAlive)
+		{
+			int width = windowW / 3;
+			SDL_Rect r = {width, windowH / 2 - 50, width, 100};
+			SDL_SetRenderDrawColor(ren, red.r, red.g, red.b, 100);
+			SDL_RenderDrawRect(ren, &r);
+			r = {width + 1, windowH / 2 - 49, width - 2, 98};
+			SDL_SetRenderDrawColor(ren, blue.r, blue.g, blue.b, 100);
+			SDL_RenderFillRect(ren, &r);
+			Renderer::RenderText("You are dead.", font, red, width + 80, windowH / 2 - 20);
+		}
 		SDL_RenderPresent(ren);
 		int currentSpeed = SDL_GetTicks() - currentFrameTime;
 		if (fpsLimitMiliseconds > currentSpeed)
@@ -841,6 +836,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	TerminateThread(moveThreadHandle, 0);
 	TTF_CloseFont(font);
+	SDL_DestroyTexture(texGround);
+	SDL_DestroyTexture(texExplosionEffect);
+	SDL_DestroyTexture(texBombaTransparent);
+	SDL_DestroyTexture(texBomba);
 	SDL_DestroyTexture(texBlock);
 	
 	delete p1;

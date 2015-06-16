@@ -1,4 +1,5 @@
 #include "Connection.h"
+#include "EnumTypes.h"
 #include <winsock.h>
 
 Connection::Connection()
@@ -41,8 +42,12 @@ int Connection::SetIP(string ip, int port)
 
 void Connection::Disconnect()
 {
-	closesocket(Socket);
-	WSACleanup();
+	Packet p;
+	p.AllocData(5);
+	p.AddInt(1/*versionNumber*/);
+	p.AddByte(PacketType::ClientDisconnect);
+	Send(p);
+	p.DeleteData();
 }
 
 int Connection::Send(Packet p)

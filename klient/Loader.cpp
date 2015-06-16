@@ -25,6 +25,8 @@ namespace Loader
 				path = GetDirectory() + path;
 		}
 		SDL_Surface* bmp = SDL_LoadBMP(path.c_str());
+		/*bmp->format->Amask = 0xFF000000;
+		bmp->format->Ashift = 24;*/
 		SDL_SetColorKey(bmp, SDL_TRUE, SDL_MapRGB(bmp->format, 255, 0, 255));
 		if (bmp == NULL)
 			return NULL;

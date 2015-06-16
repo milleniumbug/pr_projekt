@@ -92,6 +92,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Connection.h" />
+    <ClInclude Include="EnumTypes.h" />
     <ClInclude Include="Loader.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="Packet.h" />

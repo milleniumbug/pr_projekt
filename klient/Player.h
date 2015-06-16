@@ -12,6 +12,7 @@ class Player
 	int Size;
 	int Bonus;
 	int WalkProgress;
+	bool IsAlive;
 	TexArray* Textures;
 
 	Player(int id, int dir, int x, int y, int size, string bmpPath);

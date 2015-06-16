@@ -10,6 +10,7 @@ Player::Player(int id, int dir, int mapX, int mapY, int size, string bmpPath)
 	Size = size;
 	Bonus = 0;
 	WalkProgress = 0;
+	IsAlive = true;
 	Textures = new TexArray(bmpPath);
 }
 
@@ -30,6 +31,8 @@ int Player::MapY(int offset)
 
 void Player::Render()
 {
+	if (!IsAlive)
+		return;
 	int xDiff = 0;
 	int yDiff = 0;
 	if (Direction != 0)
