@@ -35,6 +35,7 @@ bool BombermanGame::refresh()
 	}
 	for(auto& player : players)
 		player.refresh(*this);
+	return std::count_if(players.begin(), players.end(), [](Player& p){ return !p.is_hurt(); }) > 1;
 }
 
 Point BombermanGame::translate(Point source, Vector displacement) const

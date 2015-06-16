@@ -142,7 +142,7 @@ void odpowiedz_lobby(OutputIterator output, RandomAccessIterator begin, RandomAc
 	auto dobry_gracz = std::bind(czy_to_ten_gracz, std::placeholders::_1, ip, port);
 	auto get_connected_players_count = [&]()
 	{
-		return std::count_if(conns.begin(), conns.end(), czy_jest_polaczony);
+		return static_cast<std::size_t>(std::count_if(conns.begin(), conns.end(), czy_jest_polaczony));
 	};
 	
 	if(komunikat == RodzajKomunikatu::przylacz_sie)
@@ -367,6 +367,7 @@ BombermanGame create_default_world(int ile_graczy = 4, int round_time = 5 * seco
 		else if(c == 'X')
 			return NondestructibleWall();
 		assert(false);
+		return EmptySpace();
 	});
 	BombermanGame world(default_level, round_time);
 	std::array<Point, 4> player_positions =
@@ -435,12 +436,12 @@ int main(int argc, char** argv)
 		remaining_time_p = &remaining_time;
 	};
 
-	auto przerwij_gre = [&]()
+	/*auto przerwij_gre = [&]()
 	{
 		gra_w_toku = false;
 		tick_number = 0;
 		remaining_time_p = nullptr;
-	};
+	};*/
 	while(true)
 	{
 		fd_set rfds = do_odczytu;

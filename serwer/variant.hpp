@@ -370,6 +370,7 @@ public:
 	{
 		this->~Variant(); // doesn't throw
 		::new(this) Variant(std::forward<T>(value)); // FAIL: if it throws, the object is in unusable state
+		return *this;
 	}
 
 	Variant(const Variant& other) :
