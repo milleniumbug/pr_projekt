@@ -89,36 +89,6 @@ class Block
 };
 
 Block** map;
-SDL_Texture** blockTextures;
-
-void generateMap()
-{
-	srand(GetTickCount());
-	map = new Block*[mapSize];
-	for (int i = 0; i < mapSize; i++)
-	{
-		map[i] = new Block[mapSize];
-		for (int j = 0; j < mapSize; j++)
-			map[i][j] = Block(rand() % 2, tileSize, i, j);
-	}
-
-	//piêkne linijki - wyczyszczenie rogów mapy, tak aby by³o miejsce gdzie postawiæ bombê
-	map[0][0] = Block(0, tileSize, 0, 0);
-	map[1][0] = Block(0, tileSize, 1, 0);
-	map[0][1] = Block(0, tileSize, 0, 1);
-
-	map[mapSize - 1][0] = Block(0, tileSize, mapSize - 1, 0);
-	map[mapSize - 1][1] = Block(0, tileSize, mapSize - 1, 1);
-	map[mapSize - 2][0] = Block(0, tileSize, mapSize - 2, 0);
-
-	map[0][mapSize - 1] = Block(0, tileSize, 0, mapSize - 1);
-	map[1][mapSize - 1] = Block(0, tileSize, 1, mapSize - 1);
-	map[0][mapSize - 2] = Block(0, tileSize, 0, mapSize - 2);
-
-	map[mapSize - 1][mapSize - 1] = Block(0, tileSize, mapSize - 1, mapSize - 1);
-	map[mapSize - 1][mapSize - 2] = Block(0, tileSize, mapSize - 1, mapSize - 2);
-	map[mapSize - 2][mapSize - 1] = Block(0, tileSize, mapSize - 2, mapSize - 1);
-}
 
 void drawFPS()
 {
@@ -131,7 +101,6 @@ void drawFPS()
 	}
 	
 	SDL_SetWindowTitle(win, ("FPS: " + to_string(framesCount)).c_str());
-	//renderText("FPS: " + to_string(framesCount), red, 0, 0);
 }
 
 int xMoveDir = 0;
@@ -143,18 +112,6 @@ bool rightPressed = false;
 bool upPressed = false;
 bool downPressed = false;
 bool spacePressed = false;
-
-void nextPlayer()
-{
-	if (controlledPlayer == p1)
-		controlledPlayer = p2;
-	else if (controlledPlayer == p2)
-		controlledPlayer = p3;
-	else if (controlledPlayer == p3)
-		controlledPlayer = p4;
-	else if (controlledPlayer == p4)
-		controlledPlayer = p1;
-}
 
 bool canBeIP(SDL_Keycode k)
 {
@@ -355,51 +312,6 @@ void HandleKeyboard(SDL_Event e)
 int xDiff = 0;
 int yDiff = 0;
 
-int mapX = 0;
-int mapY = 0;
-
-bool collidesWithBlock(int playerX, int playerY, Block b)
-{
-	POINT TopLeft = {playerX, playerY}, TopRight = {playerX + playerSize, playerY}, BottomLeft = {playerX, playerY + playerSize}, BottomRight {playerX + playerSize, playerY + playerSize};
-	if (TopLeft.x > b.x * tileSize && TopLeft.x < b.x * tileSize + tileSize && TopLeft.y > b.y * tileSize && TopLeft.y < b.y * tileSize + tileSize)
-		return true;
-	if (TopRight.x > b.x * tileSize && TopRight.x < b.x * tileSize + tileSize && TopRight.y > b.y * tileSize && TopRight.y < b.y * tileSize + tileSize)
-		return true;
-	if (BottomLeft.x > b.x * tileSize && BottomLeft.x < b.x * tileSize + tileSize && BottomLeft.y > b.y * tileSize && BottomLeft.y < b.y * tileSize + tileSize)
-		return true;
-	if (BottomRight.x > b.x * tileSize && BottomRight.x < b.x * tileSize + tileSize && BottomRight.y > b.y * tileSize && BottomRight.y < b.y * tileSize + tileSize)
-		return true;
-	return false;
-}
-
-//0 - no collision, 1 - collision on X, 2 - collision on Y, 3 - collision on X and Y
-int collides()
-{
-	mapX = controlledPlayer->MapX(xDiff);
-	mapY = controlledPlayer->MapY(yDiff);
-
-	for (int i = -1; i <= 1; i++)
-	{
-		for (int j = -1; j <= 1; j++)
-		{
-			/*if (i == 0 && j == 0)
-				continue;*/
-			int X = mapX + i;
-			int Y = mapY + j;
-			if (X < 0 || X > mapSize - 1 || Y < 0 || Y > mapSize - 1)
-				continue;
-			Block b = map[X][Y];
-			if (b.type != 0)
-			{
-				if (collidesWithBlock(controlledPlayer->X + xDiff, controlledPlayer->Y + yDiff, b))
-					return true;
-			}
-		}
-	}
-
-	return 0;
-}
-
 //async * 2ms
 void moveThread()
 {
@@ -439,36 +351,6 @@ void moveThread()
 			p.DeleteData();
 		}
 
-		/*if (yDiff != 0 || xDiff != 0)
-		{
-			if (collides())
-			{
-				xDiff = 0;
-				yDiff = 0;
-			}
-		}
-		
-		controlledPlayer->Y += yDiff;
-		controlledPlayer->X += xDiff;
-
-		if (yDiff < 0)
-			controlledPlayer->Direction = 0;
-		else if (yDiff > 0)
-			controlledPlayer->Direction = 2;
-		if (xDiff < 0)
-			controlledPlayer->Direction = 3;
-		else if (xDiff > 0)
-			controlledPlayer->Direction = 1;
-
-		if (controlledPlayer->X < 0)
-			controlledPlayer->X = 0;
-		if (controlledPlayer->Y < 0)
-			controlledPlayer->Y = 0;
-		if (controlledPlayer->Y > windowH - playerSize)
-			controlledPlayer->Y = windowH - playerSize;
-		if (controlledPlayer->X > windowW - playerSize)
-			controlledPlayer->X = windowW - playerSize;*/
-
 		Sleep(33);
 	}
 }
@@ -478,51 +360,51 @@ void recvThread()
 {
 	while (true)
 	{
-		Packet pucket = connection.Recv();
-		if (pucket.RecvResult >= 0 && pucket.RecvResult != 0xFFFFFFFF)
+		Packet recvPacket = connection.Recv();
+		if (recvPacket.RecvResult >= 0 && recvPacket.RecvResult != 0xFFFFFFFF)
 		{
 			connectionProblem = false;
-			int version = pucket.ReadInt();
-			int packetType = pucket.ReadByte();
+			int version = recvPacket.ReadInt();
+			int packetType = recvPacket.ReadByte();
 			if (packetType == PacketType::ServerSendGameState)
 			{
-				timeLeft = pucket.ReadInt();
+				timeLeft = recvPacket.ReadInt();
 				for (int i = 0; i < mapSize; i++)
 				{
 					for (int j = 0; j < mapSize; j++)
 					{
 						Block oldBlock = map[j][i];
-						map[j][i] = Block(pucket.ReadByte(), tileSize, j, i);
+						map[j][i] = Block(recvPacket.ReadByte(), tileSize, j, i);
 						if (oldBlock.type == BlockType::Bomb && map[j][i].type != BlockType::Bomb)
 						{
 							map[j][i].hitmarkerExpireTime = time(NULL) + 2500;
 						}
 					}
 				}
-				short p1X = pucket.ReadShort();
-				short p1Y = pucket.ReadShort();
-				byte p1Progress = pucket.ReadByte();
-				byte p1Dir = pucket.ReadByte();
-				pucket.ReadByte(); //czas do jebniêcia bomby
-				byte p1Alive = pucket.ReadByte();
-				short p2X = pucket.ReadShort();
-				short p2Y = pucket.ReadShort();
-				byte p2Progress = pucket.ReadByte();
-				byte p2Dir = pucket.ReadByte();
-				pucket.ReadByte(); //czas do jebniêcia bomby
-				byte p2Alive = pucket.ReadByte();
-				short p3X = pucket.ReadShort();
-				short p3Y = pucket.ReadShort();
-				byte p3Progress = pucket.ReadByte();
-				byte p3Dir = pucket.ReadByte();
-				pucket.ReadByte(); //czas do jebniêcia bomby
-				byte p3Alive = pucket.ReadByte();
-				short p4X = pucket.ReadShort();
-				short p4Y = pucket.ReadShort();
-				byte p4Progress = pucket.ReadByte();
-				byte p4Dir = pucket.ReadByte();
-				pucket.ReadByte(); //czas do jebniêcia bomby
-				byte p4Alive = pucket.ReadByte();
+				short p1X = recvPacket.ReadShort();
+				short p1Y = recvPacket.ReadShort();
+				byte p1Progress = recvPacket.ReadByte();
+				byte p1Dir = recvPacket.ReadByte();
+				recvPacket.ReadByte();
+				byte p1Alive = recvPacket.ReadByte();
+				short p2X = recvPacket.ReadShort();
+				short p2Y = recvPacket.ReadShort();
+				byte p2Progress = recvPacket.ReadByte();
+				byte p2Dir = recvPacket.ReadByte();
+				recvPacket.ReadByte();
+				byte p2Alive = recvPacket.ReadByte();
+				short p3X = recvPacket.ReadShort();
+				short p3Y = recvPacket.ReadShort();
+				byte p3Progress = recvPacket.ReadByte();
+				byte p3Dir = recvPacket.ReadByte();
+				recvPacket.ReadByte();
+				byte p3Alive = recvPacket.ReadByte();
+				short p4X = recvPacket.ReadShort();
+				short p4Y = recvPacket.ReadShort();
+				byte p4Progress = recvPacket.ReadByte();
+				byte p4Dir = recvPacket.ReadByte();
+				recvPacket.ReadByte();
+				byte p4Alive = recvPacket.ReadByte();
 				p1->X = p1X * 64 + 8;
 				p1->Y = p1Y * 64 + 8;
 				p1->WalkProgress = p1Progress;
@@ -557,7 +439,7 @@ void recvThread()
 
 			}
 		}
-		else if (pucket.RecvResult == 0xFFFFFFFF)
+		else if (recvPacket.RecvResult == 0xFFFFFFFF)
 		{
 			connectionProblem = true;
 		}
@@ -727,7 +609,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	red.b = 0;
 	red.g = 0;
 	
-	generateMap();
+	map = new Block*[mapSize];
+	for (int i = 0; i < mapSize; i++)
+		map[i] = new Block[mapSize];
 
 	ticks = GetTickCount();
 
@@ -758,13 +642,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				else
 					HandleKeyboard(e);
 		}
-		//Render the scene
 		currentFrameTime = SDL_GetTicks();
 		SDL_SetRenderDrawColor(ren, 0, 200, 0, 255);
 		SDL_RenderClear(ren);
 		SDL_Rect fillRect = {windowH, windowW, 0, 0}; 
 		SDL_RenderFillRect(ren, &fillRect);
-		//Renderer::RenderTextSmall("Wszystko chuj", font, white, 0, 0);
 		//Renderer::RenderTexture(texExplosionEffect, 200, 0, 64, 64);
 		if (menu)
 		{
@@ -833,6 +715,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (fpsLimitMiliseconds > currentSpeed)
 			SDL_Delay(fpsLimitMiliseconds - currentSpeed);
 	}
+
+	for (int i = 0; i < mapSize; i++)
+		delete[] map[i];
+	delete[] map;
 
 	TerminateThread(moveThreadHandle, 0);
 	TTF_CloseFont(font);
